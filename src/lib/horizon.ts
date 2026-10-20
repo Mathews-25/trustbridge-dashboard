@@ -50,11 +50,6 @@ export function getHorizonCircuitBreakerMetrics(): ReturnType<
   return horizonCircuitBreaker.getMetrics();
 }
 
-async function loadAccountFromHorizon(
-  address: string
-): Promise<Horizon.ServerApi.AccountRecord> {
-  const server = getHorizonServer();
-  return server.loadAccount(address);
 /** True when the balance line is a trustline for the requested asset. */
 function isMatchingTrustline(
   balance: AccountBalance,
@@ -113,24 +108,6 @@ export async function checkStellarAddress(
     ]);
   }
 
-  const errors: string[] = [];
-
-  try {
-    const account = await horizonCircuitBreaker.call(() =>
-      loadAccountFromHorizon(trimmed)
-    );
-    const xlmBalance =
-      account.balances.find((b) => b.asset_type === "native")?.balance ?? "0";
-
-    const trustline = account.balances.some((balance) => {
-      if (balance.asset_type === "native") return false;
-      if (balance.asset_type === "liquidity_pool_shares") return false;
-      return (
-        "asset_code" in balance &&
-        balance.asset_code === assetCode &&
-        "asset_issuer" in balance &&
-        balance.asset_issuer === assetIssuer
-      );
   const cacheKey = buildCacheKey("horizon", trimmed, assetCode, assetIssuer);
   if (useCache) {
     const cached = verificationCache.get(cacheKey) as HorizonCheckResult | null;
@@ -140,12 +117,14 @@ export async function checkStellarAddress(
   const server = getHorizonServer();
 
   try {
-    const account = await withRetry(() => server.loadAccount(trimmed), {
-      attempts: retries,
-      // A missing account (404) will never succeed — fail fast instead of retrying.
-      shouldRetry: (error) =>
-        !isAccountNotFoundError(getHorizonErrorMessage(error)),
-    });
+    const account = await horizonCircuitBreaker.call(() =>
+      withRetry(() => server.loadAccount(trimmed), {
+        attempts: retries,
+        // A missing account (404) will never succeed — fail fast instead of retrying.
+        shouldRetry: (error) =>
+          !isAccountNotFoundError(getHorizonErrorMessage(error)),
+      })
+    );
 
     const nativeBalance = account.balances.find(
       (b) => b.asset_type === "native"

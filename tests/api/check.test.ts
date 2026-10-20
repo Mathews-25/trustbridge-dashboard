@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { POST } from "@/app/api/check/route";
 
@@ -9,12 +9,6 @@ vi.mock("@/lib/horizon", () => ({
 import { checkStellarAddress } from "@/lib/horizon";
 import { resetRateLimit } from "@/lib/rate-limit";
 
-function post(body: unknown) {
-  return new NextRequest("http://localhost:3000/api/check", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
 const sameOriginHeaders: Record<string, string> = {
   origin: "http://localhost:3000",
   host: "localhost:3000",
@@ -36,11 +30,14 @@ describe("POST /api/check", () => {
   });
 
   it("rejects cross-origin requests before touching Horizon", async () => {
-    const r = post({ address: "GBSX" }, {
-      origin: "https://evil.com",
-      host: "localhost:3000",
-      "content-type": "application/json",
-    });
+    const r = post(
+      { address: "GBSX" },
+      {
+        origin: "https://evil.com",
+        host: "localhost:3000",
+        "content-type": "application/json",
+      }
+    );
     const res = await POST(r);
     expect(res.status).toBe(403);
     expect(checkStellarAddress).not.toHaveBeenCalled();
@@ -50,10 +47,10 @@ describe("POST /api/check", () => {
     vi.mocked(checkStellarAddress).mockResolvedValue({
       funded: true,
       trustline: true,
-      xlm_balance: 2,
+      xlm_balance: "2",
       readiness: "ready",
       horizon_error: null,
-    } as any);
+    } as never);
 
     // Exhaust the default limit (10 requests)
     for (let i = 0; i < 10; i++) {
@@ -76,29 +73,20 @@ describe("POST /api/check", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 200 with not-ready state when circuit breaker is open", async () => {
-    vi.mocked(checkStellarAddress).mockResolvedValue({
-      funded: false,
-      trustline: false,
-      xlm_balance: "0",
-      readiness: "not_ready",
-      errors: ["Horizon is temporarily unavailable. Please try again later."],
   it("returns 200 with mocked result (same-origin)", async () => {
     vi.mocked(checkStellarAddress).mockResolvedValue({
       funded: true,
       trustline: true,
-      xlm_balance: 2,
+      xlm_balance: "2",
       readiness: "ready",
       horizon_error: null,
-    } as any);
+    } as never);
 
     const r = post({ address: "GBSX" });
     const res = await POST(r);
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.errors).toContain(
-      "Horizon is temporarily unavailable. Please try again later."
-    );
+    expect(json.funded).toBe(true);
   });
 
   it("returns 500 for unexpected errors", async () => {
@@ -107,6 +95,5 @@ describe("POST /api/check", () => {
     const r = post({ address: "GBSX" });
     const res = await POST(r);
     expect(res.status).toBe(500);
-    expect(json.funded).toBe(true);
   });
 });

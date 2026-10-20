@@ -155,9 +155,6 @@ export default function DashboardPage() {
       ) : (
         <ContributorTable
           contributors={contributors}
-          onExport={() => {
-            exportContributorsCsv(contributors);
-          }}
           onExport={() => exportContributorsCsv(contributors)}
           onRecheck={(id) => recheckOneMutation.mutate(id)}
           recheckingId={

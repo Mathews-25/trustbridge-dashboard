@@ -174,7 +174,7 @@ export class BackgroundQueue<T = unknown> {
     let completedCount = 0;
     let dlqCount = 0;
 
-    for (const job of this.jobs.values()) {
+    for (const job of Array.from(this.jobs.values())) {
       switch (job.status) {
         case "pending":
           pendingCount++;
@@ -219,7 +219,7 @@ export class BackgroundQueue<T = unknown> {
   size(status?: JobStatus): number {
     if (!status) return this.jobs.size;
     let count = 0;
-    for (const job of this.jobs.values()) {
+    for (const job of Array.from(this.jobs.values())) {
       if (job.status === status) count++;
     }
     return count;
@@ -230,7 +230,7 @@ export class BackgroundQueue<T = unknown> {
   // -------------------------------------------------------------------------
 
   private firstPending(): Job<T> | undefined {
-    for (const job of this.jobs.values()) {
+    for (const job of Array.from(this.jobs.values())) {
       if (job.status === "pending") return job;
     }
     return undefined;

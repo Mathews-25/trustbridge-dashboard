@@ -1,13 +1,13 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`CSV helpers > builds CSV with headers and rows 1`] = `
-"name","value"
+""name","value"
 "alice","100"
-"bob","200"
+"bob","200""
 `;
 
 exports[`JSON helpers > builds JSON from headers and rows 1`] = `
-[
+"[
   {
     "name": "alice",
     "value": 100
@@ -16,5 +16,5 @@ exports[`JSON helpers > builds JSON from headers and rows 1`] = `
     "name": "bob",
     "value": 200
   }
-]
+]"
 `;
