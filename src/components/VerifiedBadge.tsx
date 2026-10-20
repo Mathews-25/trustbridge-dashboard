@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { BadgeCheck, ShieldAlert } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -27,9 +28,14 @@ export function VerifiedBadge({
         variant="ready"
         className={cn("gap-1", className)}
         title="On-chain verified: funded with an authorized trustline"
+        aria-label={compact ? "On-chain verified: funded with an authorized trustline" : undefined}
       >
         <BadgeCheck className="h-3.5 w-3.5" aria-hidden />
-        {!compact && "Verified"}
+        {compact ? (
+          <span className="sr-only">On-chain verified: funded with an authorized trustline</span>
+        ) : (
+          "Verified"
+        )}
       </Badge>
     );
   }
@@ -39,9 +45,14 @@ export function VerifiedBadge({
       variant="outline"
       className={cn("gap-1 text-muted-foreground", className)}
       title="Not yet verified on-chain"
+      aria-label={compact ? "Not yet verified on-chain" : undefined}
     >
       <ShieldAlert className="h-3.5 w-3.5" aria-hidden />
-      {!compact && "Unverified"}
+      {compact ? (
+        <span className="sr-only">Not yet verified on-chain</span>
+      ) : (
+        "Unverified"
+      )}
     </Badge>
   );
 }

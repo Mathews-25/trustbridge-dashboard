@@ -1,0 +1,21 @@
+{
+  "name": "TrustBridge Dashboard",
+  "short_name": "TrustBridge",
+  "description": "Register your Stellar address for TrustBridge Wave payouts. Maintainers track contributor readiness across GitHub and Stellar.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#3E1BDB",
+  "orientation": "any",
+  "scope": "/",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["finance", "productivity"],
+  "prefer_related_applications": false
+}

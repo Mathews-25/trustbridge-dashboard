@@ -13,6 +13,7 @@ export function emptyCheckResult(
     verified: false,
     xlm_balance: "0",
     spendable_xlm_balance: "0",
+    usdc_balance: "0",
     errors,
     readiness,
   };

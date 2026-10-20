@@ -1,0 +1,75 @@
+{
+  "common": {
+    "loading": "Cargando",
+    "error": "Error",
+    "success": "Éxito",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "delete": "Eliminar",
+    "export": "Exportar"
+  },
+  "header": {
+    "title": "TrustBridge",
+    "dashboard": "Panel",
+    "register": "Registrarse",
+    "settings": "Configuración",
+    "signOut": "Cerrar sesión",
+    "switchLanguage": "Idioma"
+  },
+  "dashboard": {
+    "title": "Panel de preparación de colaboradores",
+    "description": "Rastrear la preparación de colaboradores para pagos",
+    "table": {
+      "contributors": "Colaboradores",
+      "github": "GitHub",
+      "stellarAddress": "Dirección Stellar",
+      "status": "Estado",
+      "verified": "Verificado",
+      "xlmBalance": "Saldo XLM",
+      "spendableXlmBalance": "XLM gastable",
+      "lastChecked": "Última verificación",
+      "actions": "Acciones",
+      "searchPlaceholder": "Buscar por nombre de usuario o dirección",
+      "filterAll": "Todos",
+      "filterReady": "Listo",
+      "filterLowReserve": "Reserva baja",
+      "filterNeedsAttention": "Requiere atención"
+    },
+    "export": {
+      "csv": "Exportar CSV",
+      "json": "Exportar JSON",
+      "stale": "Exportar CSV (desactualizado)",
+      "jsonStale": "Exportar JSON (desactualizado)",
+      "confirm": "¿Exportar datos de colaboradores?",
+      "confirmMessage": "Esto descarga {count} colaborador{plural} a tu dispositivo, incluyendo identificadores de GitHub, direcciones de Stellar y saldos. Maneja el archivo como datos personales."
+    },
+    "emptyState": {
+      "noContributors": "Sin colaboradores registrados aún",
+      "notRegistered": "Aún no estás registrado",
+      "description": "Comparte el enlace de registro con los colaboradores de la onda para que puedan conectar una dirección Stellar para pagos y aparecer en esta tabla.",
+      "notRegisteredDescription": "Registra tu dirección Stellar para unirte a la onda y aparecer en la tabla de preparación.",
+      "actionLabel": "Abrir página de registro",
+      "copyLink": "Copiar enlace de registro"
+    }
+  },
+  "register": {
+    "title": "Registrarse",
+    "description": "Registra tu dirección Stellar para pagos",
+    "connectGitHub": "Conectar GitHub",
+    "connectWallet": "Conectar billetera Stellar",
+    "form": {
+      "email": "Correo electrónico",
+      "gitHubUsername": "Nombre de usuario de GitHub",
+      "stellarAddress": "Dirección Stellar",
+      "submit": "Registrarse"
+    },
+    "success": "Registro exitoso",
+    "error": "Falló el registro"
+  },
+  "date": {
+    "formats": {
+      "short": "{day}/{month}/{year}",
+      "long": "{day} de {month} de {year}"
+    }
+  }
+}

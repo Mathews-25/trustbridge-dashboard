@@ -9,6 +9,7 @@ datasource db {
 
 model User {
   id              String        @id @default(cuid())
+  maintainerOrgId String        @default("default")
   githubId        String        @unique
   githubUsername  String        @unique
   name            String?
@@ -20,12 +21,37 @@ model User {
   sessions        Session[]
   registration    Registration?
   auditLogs       TokenAuditLog[]
+  addressHistory  AddressHistoryRecord[]
+  invites         Invite[]
+  apiKeys         ApiKey[]
+  notifications   Notification[]
+  attemptedConflicts RegistrationConflict[] @relation("AttemptedConflicts")
+  existingConflicts  RegistrationConflict[] @relation("ExistingConflicts")
+  banned          Boolean       @default(false)
+  bannedAt        DateTime?
+  banReason       String?
+  bannedById      String?
+  checklistCompleted Json?      @default("{}")
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+
+  @@index([githubUsername])
+}
+
+model BannedContributor {
+  id              String   @id @default(cuid())
+  maintainerOrgId String   @default("default")
+  githubUsername  String   @unique
+  reason          String
+  bannedById      String?
+  createdAt       DateTime @default(now())
+
+  @@index([githubUsername])
 }
 
 model TokenAuditLog {
   id        String   @id @default(cuid())
+  maintainerOrgId String @default("default")
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   action    String
@@ -48,29 +74,167 @@ model Registration {
   xlmBalance     String    @default("0")
   spendableXlmBalance String @default("0")
   lastCheckedAt  DateTime?
+  /// JSON map of OnboardingChecklistState keys → boolean. Null = no steps completed yet.
+  checklistCompleted Json?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+  id                  String        @id @default(cuid())
+  maintainerOrgId     String        @default("default")
+  userId              String        @unique
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Unique among active registrations; the partial index is defined in the migration.
+  stellarAddress      String
+  deletedAt           DateTime?
+  trustlineReady      Boolean       @default(false)
+  trustlineAuthorized Boolean       @default(false)
+  funded              Boolean       @default(false)
+  xlmBalance          String        @default("0")
+  spendableXlmBalance String        @default("0")
+  usdcBalance         String        @default("0")
+  horizonLatencyMs    Int?
+  lastCheckedAt       DateTime?
+  /// Opt-in public profile. Default false (private).
+  profilePublic       Boolean       @default(false)
+  /// Only relevant when profilePublic=true. Shows G-address on public profile.
+  showStellarAddress  Boolean       @default(false)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  notes               String?
+  tags                String[]      @default([])
+  disputeProof        DisputeProof?
+  checklistCompleted  Json?         @default("{}")
 
   @@index([trustlineReady])
   @@index([lastCheckedAt])
+  @@index([deletedAt])
+  @@index([profilePublic])
+}
+
+enum DisputeStatus {
+  OPEN
+  VALIDATED
+  REJECTED
+}
+
+model DisputeProof {
+  id             String        @id @default(cuid())
+  maintainerOrgId String       @default("default")
+  registrationId String        @unique
+  registration   Registration  @relation(fields: [registrationId], references: [id])
+  reason         String
+  proofCid       String?
+  status         DisputeStatus @default(OPEN)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  resolvedAt     DateTime?
+
+  @@map("dispute_proofs")
+}
+
+model AddressHistoryRecord {
+  id              String   @id @default(cuid())
+  maintainerOrgId String   @default("default")
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  previousAddress String?
+  newAddress      String
+  changeType      String
+  recordedAt      DateTime @default(now())
+
+  @@index([userId])
+  @@index([recordedAt])
 }
 
 model AuditLog {
-  id         String   @id @default(cuid())
-  actorId    String?
-  actorLogin String?
-  action     String
-  targetId   String?
+  id          String   @id @default(cuid())
+  maintainerOrgId String @default("default")
+  actorId     String?
+  actorLogin  String?
+  action      String
+  targetId    String?
   targetLabel String?
-  metadata   Json?
-  createdAt  DateTime @default(now())
+  metadata    Json?
+  createdAt   DateTime @default(now())
 
   @@index([createdAt])
   @@index([action])
 }
 
+model Invite {
+  id            String    @id @default(cuid())
+  maintainerOrgId String  @default("default")
+  codeHash      String    @unique
+  batchLabel    String?
+  expiresAt     DateTime?
+  used          Boolean   @default(false)
+  generatedById String
+  generatedBy   User      @relation(fields: [generatedById], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+  usedAt        DateTime?
+
+  @@index([codeHash])
+  @@index([generatedById])
+  @@index([createdAt])
+}
+
+model QueueJob {
+  id           String   @id @default(cuid())
+  maintainerOrgId String @default("default")
+  type         String
+  status       String   @default("pending")
+  data         Json?
+  result       Json?
+  error        String?
+  /// Owner of the job (user ID) - used to prevent leaking across orgs
+  ownerId      String?
+  createdAt    DateTime @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  @@index([status])
+  @@index([ownerId])
+  @@index([createdAt])
+  @@index([type, status])
+}
+
+/// Optional database source for the feature-flags module (see src/lib/feature-flags.ts).
+/// Only consulted when FEATURE_FLAGS_DB_ENABLED is truthy; env overrides always win.
+model FeatureFlag {
+  key         String   @id
+  enabled     Boolean  @default(false)
+  description String?
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+}
+
+/// Maintainer API keys for programmatic / cron access to export endpoints.
+/// The raw key is shown once at creation and never stored.
+/// Only the SHA-256 hex digest is persisted here.
+model ApiKey {
+  id              String    @id @default(cuid())
+  maintainerOrgId String    @default("default")
+  /// SHA-256 hex of the raw bearer token. Never store the raw key.
+  keyHash         String    @unique
+  /// Human-readable label chosen by the creator.
+  name            String
+  /// Allowed scopes, e.g. ["export:read"]. "*" grants everything (reserved).
+  scopes          String[]  @default([])
+  createdById     String
+  createdBy       User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  expiresAt       DateTime?
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([keyHash])
+  @@index([createdById])
+  @@index([createdAt])
+}
+
 model Account {
   id                String  @id @default(cuid())
+  maintainerOrgId   String  @default("default")
   userId            String
   type              String
   provider          String
@@ -89,6 +253,7 @@ model Account {
 
 model Session {
   id           String   @id @default(cuid())
+  maintainerOrgId String @default("default")
   sessionToken String   @unique
   userId       String
   expires      DateTime
@@ -96,9 +261,116 @@ model Session {
 }
 
 model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
+  maintainerOrgId String   @default("default")
+  identifier      String
+  token           String   @unique
+  expires         DateTime
 
   @@unique([identifier, token])
+}
+
+model ApiKey {
+  id        String    @id @default(cuid())
+  name      String
+  /// SHA-256 hex digest of the raw key. The raw key is shown exactly once
+  /// and never stored in plaintext — see src/lib/invite-helpers.ts for the
+  /// same pattern used for invite tokens.
+  keyHash   String    @unique
+  scopes    String[]
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([createdAt])
+}
+
+model Invite {
+  id         String    @id @default(cuid())
+  email      String
+  /// SHA-256 hex digest of the raw token. Only the hash is persisted.
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
+}
+enum NotificationType {
+  BATCH_JOB_COMPLETED
+  BATCH_JOB_FAILED
+  READINESS_CHANGED
+  DISPUTE_SUBMITTED
+  INVITE_USED
+}
+
+model Notification {
+  id              String           @id @default(cuid())
+  maintainerOrgId String           @default("default")
+  userId          String?
+  user            User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            NotificationType
+  title           String
+  body            String
+  read            Boolean          @default(false)
+  metadata        Json?
+  createdAt       DateTime         @default(now())
+  readAt          DateTime?
+
+  @@index([userId])
+  @@index([maintainerOrgId])
+  @@index([read])
+  @@index([createdAt])
+}
+
+model SorobanEventCursor {
+  id              String   @id @default(cuid())
+  maintainerOrgId String   @default("default")
+  eventType       String   @default("contract")
+  cursor          String
+  lastPagingToken String?
+  lastSyncedAt    DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([maintainerOrgId, eventType])
+  @@index([maintainerOrgId])
+}
+
+model SorobanOutbox {
+  id              String   @id @default(cuid())
+  maintainerOrgId String   @default("default")
+  action          String   @default("register")
+  payload         Json
+  status          String   @default("PENDING")
+  attempts        Int      @default(0)
+  maxAttempts     Int      @default(5)
+  lastError       String?
+  nextAttemptAt   DateTime @default(now())
+  idempotencyKey  String?  @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([status, nextAttemptAt])
+  @@index([maintainerOrgId])
+}
+
+model RegistrationConflict {
+  id               String   @id @default(cuid())
+  maintainerOrgId  String   @default("default")
+  attemptedAddress String
+  attemptedUserId  String
+  attemptedUser    User     @relation("AttemptedConflicts", fields: [attemptedUserId], references: [id], onDelete: Cascade)
+  existingUserId   String
+  existingUser     User     @relation("ExistingConflicts", fields: [existingUserId], references: [id], onDelete: Cascade)
+  resolved         Boolean  @default(false)
+  resolvedAt       DateTime?
+  resolvedById     String?
+  createdAt        DateTime @default(now())
+
+  @@index([attemptedAddress])
+  @@index([attemptedUserId])
+  @@index([existingUserId])
+  @@index([maintainerOrgId])
+  @@index([createdAt])
 }

@@ -1,0 +1,31 @@
+version: '3.8'
+
+# TrustBridge Dashboard — Mock Horizon Server
+#
+# Uses WireMock (https://wiremock.org) to serve deterministic, offline
+# Horizon API responses matching trustbridge-action mappings for local dev and CI.
+#
+# Usage:
+#   docker compose -f mock/horizon/docker-compose.yml up -d
+#   NEXT_PUBLIC_HORIZON_URL=http://localhost:8089 npm run test:mock
+#   docker compose -f mock/horizon/docker-compose.yml down
+
+services:
+  mock-horizon:
+    image: wiremock/wiremock:3.6.0
+    container_name: trustbridge-dashboard-mock-horizon
+    ports:
+      - "8089:8080"
+    volumes:
+      - ./mappings:/home/wiremock/mappings:ro
+    command:
+      - "--port=8080"
+      - "--verbose"
+      - "--max-request-journal=500"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/__admin/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: "no"

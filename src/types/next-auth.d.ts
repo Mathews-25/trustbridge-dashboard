@@ -1,6 +1,8 @@
 import "next-auth";
 import "next-auth/jwt";
 
+export type AppRole = "admin" | "operator" | "viewer";
+
 declare module "next-auth" {
   interface Session {
     user: {
@@ -17,6 +19,15 @@ declare module "next-auth" {
        * route org-scoping logic can always rely on a non-empty string.
        */
       maintainerOrgId?: string;
+      role?: AppRole;
+      csrfToken?: string;
+      /** The org the maintainer is currently scoped to. Defaults to "default". */
+      maintainerOrgId?: string;
+      /**
+       * All orgs the maintainer belongs to (from ALLOWED_MAINTAINER_ORGS).
+       * Only populated for maintainers; empty array for contributors.
+       */
+      availableOrgs?: string[];
     };
   }
 }
@@ -31,5 +42,10 @@ declare module "next-auth/jwt" {
      * require a round-trip back to the database or the GitHub API.
      */
     maintainerOrgId?: string;
+    role?: AppRole;
+    /** Active org for this session (set at sign-in, switchable via /api/auth/switch-org). */
+    maintainerOrgId?: string;
+    /** All orgs this maintainer belongs to (baked in at sign-in). */
+    availableOrgs?: string[];
   }
 }

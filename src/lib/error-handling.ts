@@ -132,6 +132,20 @@ export function getUserFriendlyMessage(errorCode: string): string {
 }
 
 /**
+ * Match actual HTTP 5xx server status codes, or explicit server-error enums,
+ * without misclassifying unrelated numeric fragments like "field 5".
+ */
+function hasServerFailureStatus(message: string): boolean {
+  if (/(?:^|[^0-9])5\d{2}(?!\d)(?=$|[^0-9])/i.test(message)) {
+    return true;
+  }
+
+  return /(?:^|[^A-Z_])(?:INTERNAL_SERVER_ERROR|BAD_GATEWAY|SERVICE_UNAVAILABLE|GATEWAY_TIMEOUT|HTTP_5XX|5XX)(?=$|[^A-Z_])/i.test(
+    message
+  );
+}
+
+/**
  * Classify errors by type for handling.
  */
 export function classifyError(error: unknown): {
@@ -164,7 +178,7 @@ export function classifyError(error: unknown): {
       };
     }
 
-    if (error.message.includes('5')) {
+    if (hasServerFailureStatus(error.message)) {
       return {
         type: 'server',
         message: getUserFriendlyMessage('SERVER_ERROR'),

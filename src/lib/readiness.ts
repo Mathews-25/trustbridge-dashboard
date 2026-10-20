@@ -1,11 +1,25 @@
+import type { WizardAction } from "@/lib/action-lookup";
 import { BASE_RESERVE_XLM, MIN_XLM_BALANCE } from "@/lib/constants";
 import type { HorizonCheckResult, ReadinessStatus } from "@/types";
 
 export interface ReadinessDisplayConfig {
+  /** Badge text. Short enough to sit in a table cell. */
   label: string;
   variant: "ready" | "warning" | "danger";
   icon: string;
+  /**
+   * One sentence of plain language explaining what the state means for the
+   * contributor. No Stellar vocabulary that is not explained in place.
+   */
   description: string;
+  /** The single next thing the contributor shouldo. */
+  nextStep: string;
+  /**
+   * Reason codes that can produce this status, in the order
+   * `computeNextAction()` checks them. Keeps the badge copy honest against
+   * `WIZARD_ACTION_COPY` — see `readiness-copy.test.ts`.
+   */
+  reasonCodes: WizardAction[];
 }
 
 /** Pure helpers — safe for client and server; no stellar-sdk. */
@@ -105,11 +119,14 @@ export function buildCheckResult(
   xlm_balance: string,
   errors: string[] = [],
   trustlineAuthorized: boolean = trustline,
-  spendableXlmBalance?: string
+  spendableXlmBalance?: string,
+  usdcBalance?: string,
+  horizonLatencyMs?: number
 ): HorizonCheckResult {
   const balance = String(xlm_balance ?? "0");
   const spendableBalance =
     spendableXlmBalance !== undefined ? String(spendableXlmBalance) : balance;
+  const assetBalance = String(usdcBalance ?? "0");
   return {
     funded,
     trustline,
@@ -117,6 +134,8 @@ export function buildCheckResult(
     verified: computeVerified(funded, trustline, trustlineAuthorized),
     xlm_balance: balance,
     spendable_xlm_balance: spendableBalance,
+    usdc_balance: assetBalance,
+    horizon_latency_ms: horizonLatencyMs,
     errors,
     readiness: computeReadiness(funded, trustline, balance, {
       authorized: trustlineAuthorized,
@@ -148,24 +167,47 @@ export function buildNotFoundCheckResult(): HorizonCheckResult {
   ]);
 }
 
+/**
+ * Contributor-facing copy for each readiness state.
+ *
+ * Written for someone whose first contact with Stellar is this page: say what
+ * the state means for their payout, then what to do about it. The Horizon
+ * field names, balances, and reason codes behind the state belong in the
+ * maintainer "Horizon debug" panel (`ContributorDebugPanel`), not here.
+ *
+ * Keep in step with `docs/READINESS_MODEL.md` and `WIZARD_ACTION_COPY`.
+ */
 export const READINESS_CONFIG: Record<ReadinessStatus, ReadinessDisplayConfig> = {
   ready: {
     label: "Ready",
     variant: "ready",
     icon: "✅",
-    description: "Funded, trustline present, and reserve met",
+    description: "This wallet is set up and can receive USDC payouts.",
+    nextStep: "Nothing to do — you are set for the next payout.",
+    reasonCodes: ["none"],
   },
   low_reserve: {
-    label: "Low Reserve",
+    label: "Low balance",
     variant: "warning",
     icon: "⚠️",
-    description: "Trustline ready but XLM reserve is below the minimum",
+    description:
+      "This wallet can receive USDC, but it is running low on XLM — the small deposit Stellar keeps locked in every wallet.",
+    nextStep:
+      "Add a little more XLM so the wallet keeps working when the payout lands.",
+    reasonCodes: ["increase_reserve"],
   },
   not_ready: {
-    label: "Not Ready",
+    label: "Not ready yet",
     variant: "danger",
     icon: "❌",
-    description: "Missing funding and/or required trustline",
+    description: "This wallet cannot receive USDC payouts yet.",
+    nextStep:
+      "Follow the setup steps: put some XLM in the wallet, then turn on USDC for it.",
+    reasonCodes: [
+      "fund_account",
+      "add_trustline",
+      "await_trustline_authorization",
+    ],
   },
 };
 
@@ -186,4 +228,18 @@ export function getRowAccent(status: ReadinessStatus): string {
 
 export function describeReadiness(status: ReadinessStatus): string {
   return getReadinessConfig(status).description;
+}
+
+/** Plain-language "what to do next" for a readiness state. */
+export function getReadinessNextStep(status: ReadinessStatus): string {
+  return getReadinessConfig(status).nextStep;
+}
+
+/**
+ * Full badge copy: what the state means plus what to do about it. Used for the
+ * badge tooltip and for the expanded guidance under the badge.
+ */
+export function describeReadinessWithNextStep(status: ReadinessStatus): string {
+  const config = getReadinessConfig(status);
+  return `${config.description} ${config.nextStep}`;
 }

@@ -1,35 +1,126 @@
 # Maintainer Workflow
 
-This flow keeps payout preparation predictable.
-
-1. Ask contributors to register their GitHub username and Stellar address.
-2. Review newly registered addresses in the dashboard.
-3. Re-check readiness before exporting payment data.
-4. Filter out accounts marked not ready.
-5. Keep the exported CSV with the payout batch record.
-
-For urgent payouts, contact contributors with the remediation text shown by the dashboard before changing thresholds.
+This guide documents operational workflows for TrustBridge maintainers and treasurers, including the `trustbridge-dash` CLI, wave freeze windows, and payout verification.
 
 ---
 
-## Background queue health
+## 1. CLI (`trustbridge-dash`)
 
-The re-check flow uses an in-process `BackgroundQueue` to run Horizon checks without blocking HTTP responses. Maintainers can inspect the current queue state at any time:
+The `trustbridge-dash` CLI allows maintainers and automated scripts to export payout data and initiate address rechecks without relying on browser UI sessions.
 
+### Installation & Local Usage
+
+The CLI is registered in `package.json` under `"bin"`:
+
+```bash
+# Direct execution via npm/npx or node
+./scripts/cli/index.mjs --help
+npx trustbridge-dash --help
 ```
-GET /api/contributors/queue/health
+
+### Commands
+
+#### 1. Login / Credential Setup
+Save the target URL and API key locally (stored in `~/.trustbridge/config.json` with `0600` permissions):
+```bash
+trustbridge-dash login --url https://dashboard.trustbridge.org --api-key <YOUR_API_KEY>
 ```
 
-Response fields:
+Alternatively, provide configuration via environment variables:
+```bash
+export TRUSTBRIDGE_API_URL="https://dashboard.trustbridge.org"
+export TRUSTBRIDGE_API_KEY="<YOUR_API_KEY>"
+```
 
-| Field | Description |
-|-------|-------------|
-| `pendingCount` | Jobs waiting to be processed |
-| `processingCount` | Jobs currently running |
-| `completedCount` | Jobs that finished successfully |
-| `dlqCount` | Jobs that exhausted retries and landed in the dead-letter queue |
-| `totalEnqueued` | Total jobs enqueued since process start |
-| `lastProcessedAt` | ISO-8601 timestamp of the most recently completed job |
-| `workerStartedAt` | ISO-8601 timestamp of when the first job was ever enqueued |
+#### 2. Treasury Export
+Export contributor readiness and Stellar addresses in CSV (default) or JSON format:
+```bash
+# Export CSV to stdout or file
+trustbridge-dash export --format csv --out ./treasury-export.csv
 
-A non-zero `dlqCount` indicates stuck recheck jobs. These are safe to ignore (Postgres stays the source of truth), but are a signal that Horizon may be intermittently unavailable. The queue resets on process restart.
+# Export JSON
+trustbridge-dash export --format json --out ./treasury-export.json
+```
+
+API clients can request the same formats by POSTing `{"format":"csv"}` or
+`{"format":"json"}` to `/api/treasury/export`. The endpoint requires an
+operator session or an API key with the `export:read` scope and applies its
+same-origin request check.
+
+#### 3. Recheck
+Trigger an address verification / readiness check:
+```bash
+# Batch recheck all contributors (asynchronous background queue)
+trustbridge-dash recheck --all
+
+# Recheck a single contributor
+trustbridge-dash recheck --username octocat
+```
+
+### Security & Protocol Constraints
+- **HTTPS Enforcement**: Unencrypted HTTP (`http://`) endpoints are strictly rejected by the CLI to protect API keys and contributor information.
+- **Log Masking**: API keys and tokens are never printed in full to logs or error outputs.
+
+---
+
+## 2. Wave Roster Freeze Window
+
+To prevent roster changes or rechecks from shuffling readiness states immediately prior to wave payout settlement:
+
+- **Configuration**:
+  - `FREEZE_WINDOW_START` (ISO 8601, e.g. `2026-08-30T00:00:00Z`).
+  - `FREEZE_WINDOW_END` (ISO 8601, e.g. `2026-09-02T00:00:00Z`).
+  - `FREEZE_WINDOW_ENABLED=true` (or `false` to disable).
+- **Behavior**:
+  - Mutating operations (`POST /api/register/recheck`, address updates in `POST /api/register`) are blocked during an active freeze window with HTTP `423 Locked` (`code: WAVE_FREEZE_ACTIVE`).
+  - Read operations (`GET /api/register`, dashboard viewing) remain fully operational.
+  - Blocked attempts are logged in the audit log as `recheck.freeze_blocked` / `address_change.freeze_blocked`.
+- **Maintainer Override**:
+  - Maintainers can bypass an active freeze window when necessary by supplying header `x-freeze-override: true` or query param `overrideFreeze=true`.
+  - Override operations are recorded in the audit log as `recheck.freeze_override` / `address_change.freeze_override`.
+
+---
+
+## 3. Horizon Latency Metrics
+
+- The maintainer metrics dashboard aggregates `horizonLatencyMs` from Horizon address checks.
+- Visualizes average latency, median (p50), p95 latency, and sample counts.
+- Displays an empty state banner when no samples exist.
+
+---
+
+## 4. Contributor Ban & Unban Management
+
+- Maintainers can ban an abusive or compromised contributor via the maintainer dashboard or `POST /api/maintainer/ban` (`action: "ban"`, `githubUsername: "<username>"`, `reason: "<mandatory reason>"`).
+- Banning requires a non-empty reason and applies case-insensitively across current and future account re-registrations.
+- Unban via `POST /api/maintainer/ban` (`action: "unban"`, `githubUsername: "<username>"`).
+- All actions record audit trail events (`contributor.banned`, `contributor.unbanned`).
+
+---
+
+## 5. Soroban Event Cursor Reset
+
+When operators need to re-index or re-sync Soroban events from a specific ledger or genesis:
+
+1. **Inspect existing cursors**:
+   ```sql
+   SELECT "maintainerOrgId", "eventType", "cursor", "lastPagingToken", "lastSyncedAt"
+   FROM "SorobanEventCursor"
+   WHERE "maintainerOrgId" = '<maintainer_org>';
+   ```
+
+2. **Reset to a previous ledger/token**:
+   ```sql
+   UPDATE "SorobanEventCursor"
+   SET "cursor" = '<target_ledger_or_token>',
+       "lastPagingToken" = NULL,
+       "lastSyncedAt" = NOW()
+   WHERE "maintainerOrgId" = '<maintainer_org>' AND "eventType" = 'contract';
+   ```
+
+3. **Full re-sync from scratch**:
+   Delete the cursor record to let the backfill worker start from genesis or the contract inception ledger:
+   ```sql
+   DELETE FROM "SorobanEventCursor"
+   WHERE "maintainerOrgId" = '<maintainer_org>' AND "eventType" = 'contract';
+   ```

@@ -21,6 +21,13 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
+    /*
+     * Divider for data grids (metrics audit table, Soroban event timeline).
+     * `--border` is a hairline tuned for card outlines — at 1.2:1 against the
+     * page it disappears the moment it has to separate rows of numbers. This
+     * one clears WCAG 1.4.11's 3:1 non-text minimum in both themes.
+     */
+    --border-strong: 214.3 31.8% 58%;
     --input: 214.3 31.8% 91.4%;
     --ring: 252 79% 48%;
     --radius: 0.75rem;
@@ -33,19 +40,25 @@
     --card-foreground: 210 40% 98%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-    --primary: 252 79% 58%;
+    --primary: 252 79% 66%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 191 100% 42%;
+    /* Raised from 65.1% → 70% lightness for WCAG AA 4.5:1 on dark background */
+    --muted-foreground: 215 20.2% 70%;
+    --accent: 191 100% 48%;
     --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 252 79% 58%;
+    /* Raised from L 30.6% → 65% so `text-destructive` on dark bg meets WCAG AA (was ~2.3:1, now ~5.9:1) */
+    --destructive: 0 85% 65%;
+    --destructive-foreground: 0 0% 10%;
+    /* Raised from 22% → 28%: at 22% a card outline sat at 1.6:1 on the dark
+       page and read as no outline at all. */
+    --border: 217.2 32.6% 28%;
+    /* Data-grid divider — 3.4:1 against both --background and --card. */
+    --border-strong: 215 20.2% 42%;
+    --input: 217.2 32.6% 28%;
+    --ring: 252 79% 66%;
   }
 }
 
@@ -62,5 +75,29 @@
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+}
+
+/*
+ * Respect prefers-reduced-motion sitewide (issue #141). Collapses
+ * animation/transition durations to effectively zero so motion-sensitive
+ * users don't get sweeping transitions (e.g. WaveReadinessBar's fill bar).
+ * `.animate-spin` is explicitly exempted below — Loader2 spinners communicate
+ * genuine async/loading state, not decorative motion, and freezing them would
+ * make the UI look stuck rather than accessible.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-spin {
+    animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
   }
 }

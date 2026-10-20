@@ -23,7 +23,7 @@ vi.mock("@/lib/audit", () => ({
 
 import type { NextAuthOptions } from "next-auth";
 
-import { authOptions } from "@/lib/auth";
+import { authOptions, verifyTenantAccess, getAllowedMaintainerOrgs } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { recordAuditLog } from "@/lib/audit";
 
@@ -134,6 +134,7 @@ describe("auth jwt callback - maintainer team scoping", () => {
     expect(token.isMaintainer).toBe(true);
     expect(token.maintainerOrgId).toBe("stellar-org");
     expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledTimes(2);
     expect(recordAuditLog).not.toHaveBeenCalled();
   });
 
@@ -176,5 +177,15 @@ describe("auth jwt callback - maintainer team scoping", () => {
 
     expect(token.isMaintainer).toBeUndefined();
     expect(token.maintainerOrgId).toBe("default");
+  });
+
+  it("enforces tenant isolation and prevents IDOR across maintainer orgs", () => {
+    expect(verifyTenantAccess("OrgA", "OrgA")).toBe(true);
+    expect(verifyTenantAccess("OrgA", "orga")).toBe(true);
+    expect(verifyTenantAccess("OrgA", "OrgB")).toBe(false);
+    expect(verifyTenantAccess("OrgA", "")).toBe(false);
+
+    process.env.ALLOWED_MAINTAINER_ORGS = "OrgA, OrgB, OrgC";
+    expect(getAllowedMaintainerOrgs()).toEqual(["OrgA", "OrgB", "OrgC"]);
   });
 });

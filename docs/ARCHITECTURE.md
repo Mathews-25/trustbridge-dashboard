@@ -102,11 +102,103 @@ Maintainer check flow (two-tier: org, then optionally team):
 
 Non-maintainers hitting `/dashboard` are redirected to `/register?error=maintainer`.
 
+### Multi-org support and the org-switcher
+
+When `ALLOWED_MAINTAINER_ORGS` lists more than one org (comma-separated), the
+JWT callback calls `resolveAvailableOrgs()` at sign-in to find which of those
+orgs the user actually belongs to. The full list is baked into the token as
+`availableOrgs` and the first matched org becomes the initial `maintainerOrgId`.
+
+**Switching orgs without re-logging in:**
+
+1. The `OrgSwitcher` component (`src/components/OrgSwitcher.tsx`) renders in
+   the header only for maintainers with `availableOrgs.length > 1`.
+2. The user picks a different org. The component POSTs to
+   `POST /api/auth/switch-org` which validates the requested org is in the
+   session's `availableOrgs` list and records an `org_switched` audit log entry.
+3. The client calls NextAuth's `update({ maintainerOrgId })` to refresh the
+   session cookie without a full re-login.
+4. The page hard-navigates to `/dashboard` so server-side RLS picks up the new
+   `app.maintainer_org_id` setting.
+
+**Tenant isolation.** PostgreSQL RLS enforces row-level isolation via
+`current_setting('app.maintainer_org_id', true)` — switching org changes which
+rows the Prisma queries return. A maintainer can only switch to orgs present in
+their JWT-baked `availableOrgs`; any other value returns 403 with an audit log
+entry (`org_switch_denied`).
+
+**Single-org deployments** are unaffected: if `ALLOWED_MAINTAINER_ORGS`
+resolves to one org the switcher is hidden and nothing changes.
+
+### Read-only GraphQL (`POST /api/graphql`)
+
+The endpoint exposes two query fields:
+
+- `stats` returns the same aggregate `totalContributors`, `readyCount`, and
+  `readyPercent` data as `GET /api/stats`; it remains publicly readable.
+- `contributors(first, after)` returns a cursor-paginated `nodes` page,
+  `hasMore`, and `nextCursor`. It requires the same maintainer session as
+  `GET /api/contributors/paginated`. `first` defaults to 25 and is limited to
+  1–100.
+
+The schema is intentionally allow-listed and read-only. It exposes no user
+tokens, wallet-proof data, or Horizon debug payloads, and it defines no
+mutation or subscription operation. Production requests cannot use schema
+introspection.
+
+Requests are JSON POST bodies with a `query` string and optional `variables`.
+The endpoint rejects bodies over 16 KiB, queries deeper than 5 fields, queries
+with more than 100 selected fields, and queries with a weighted cost over
+2,500. The analyzer charges each selected field at the current multiplier; a
+`contributors(first: N)` selection multiplies every field in its selection set
+by `N` (25 when `first` is omitted). For example, the query
+`contributors(first: 10) { nodes { githubUsername readiness } hasMore }`
+costs 41: one for `contributors`,
+10 each for `nodes`, `hasMore`, `githubUsername`, and `readiness`. Aliased
+selections are charged separately. The `first` value must be an integer from 1
+through 100, and a query that exceeds any bound returns HTTP 400 before
+resolvers run. A page-size variable with the wrong GraphQL type is rejected
+before cost calculation rather than being coerced into an unintended limit.
+Requests are also limited to 120 per minute per client IP, matching the public
+stats REST endpoint.
+
+Example:
+
+```graphql
+query ContributorRead($first: Int!, $after: String) {
+  stats {
+    totalContributors
+    readyCount
+    readyPercent
+  }
+  contributors(first: $first, after: $after) {
+    nodes {
+      githubUsername
+      stellarAddress
+      readiness
+    }
+    hasMore
+    nextCursor
+  }
+}
+```
+
 ---
 
 ## Data model
 
 See `prisma/schema.prisma`.
+
+### PostgreSQL tenant isolation
+
+All persisted models include `maintainerOrgId`. The migration
+`20260828000000_add_maintainer_org_rls` enables and forces RLS with a policy
+that compares this column to `current_setting('app.maintainer_org_id', true)`.
+The runtime Prisma role must receive that setting through its connection URL;
+an unset setting returns no rows. `trustbridge_migrator` is a separate
+`BYPASSRLS` role used only by Prisma migrations. See
+[`PRISMA_POOL_TUNING.md`](./PRISMA_POOL_TUNING.md) for role creation, grants,
+and connection examples.
 
 ```
 User
@@ -207,7 +299,38 @@ CSV columns: `github_username`, `stellar_address`, `readiness`, `funded`, `trust
 
 ---
 
-## Frontend architecture
+## Contract sync
+
+The `syncContractToPostgres()` function (`src/lib/contract-sync.ts`) performs a TRUE contract→Postgres sync, reading on-chain registrations and updating Postgres accordingly. This is distinct from Horizon re-checks, which refresh account balances and trustline status.
+
+### How it works
+
+1. **Fetch from contract:** Calls `get_registered_paginated()` on the Soroban contract to get all on-chain registrations
+2. **Merge into Postgres:** For each on-chain registration:
+   - If exists in Postgres but not in contract → keep it (don't delete)
+   - If exists in contract but not in Postgres → log it (can't create without a user)
+   - If exists in both → update GitHub username if changed
+3. **Rate-limited:** Respects `CONTRACT_SYNC_MIN_INTERVAL_MS` to prevent hammering the RPC
+4. **Never throws:** All errors are caught and returned in the result
+
+### Merge rules
+
+| Contract | Postgres | Action |
+|----------|----------|--------|
+| ✅ | ✅ | Update if GitHub username changed |
+| ✅ | ❌ | Log (can't create without a user) |
+| ❌ | ✅ | Keep (don't delete from Postgres) |
+
+### Horizon re-check vs Contract sync
+
+| Feature | Horizon Re-check | Contract Sync |
+|---------|------------------|---------------|
+| Purpose | Refresh account balances, trustline status | Sync on-chain registrations |
+| Trigger | Manual (maintainer) or batch | Scheduler (cron) |
+| Function | `refreshAllContributors()` | `syncContractToPostgres()` |
+| Route | `POST /api/contributors` | `POST /api/contract-sync` |
+
+---
 
 | Concern | Approach |
 |---------|----------|
@@ -281,15 +404,22 @@ This section covers the full lifecycle of Soroban integration: the read path tha
 - No caching layer sits in front of this call today (unlike `/api/actions/lookup`, which caches Horizon reads for 30s in `src/lib/cache.ts`); each request re-queries the RPC endpoint. A cache would be a reasonable addition if this panel sees high-frequency polling.
 - Unit coverage: `src/lib/soroban.test.ts` (success, missing config, RPC failure) and `src/app/api/soroban/events/route.test.ts` (maintainer guard: 403 for anonymous/non-maintainer, 200 with the timeline payload for a maintainer).
 
-### Write-through path (design only — not implemented)
+### Write-through path (implemented)
 
-No code path writes to a Soroban contract today. `/api/register` (`src/app/api/register/route.ts`) only performs a Horizon check and a Prisma upsert. This section documents the intended design so a future contributor can implement it consistently and safely:
+The write-through path is now implemented (`src/lib/soroban-register.ts`), wired into `/api/register`'s `POST` handler, with real on-chain execution logic:
 
 - **PostgreSQL stays the source of truth.** A Soroban write is a mirror, not a replacement — dashboard reads, Wave aggregation, and CSV export continue to query Postgres exclusively.
-- **Ordering:** the contract write would be attempted in `/api/register`'s `POST` handler **after** `prisma.registration.upsert()` resolves successfully — never before, and never in a way that blocks or gates the Postgres write.
-- **Best-effort and failure-isolated:** the write attempt must be wrapped so that a Soroban RPC outage, rate limit, or a missing `SOROBAN_CONTRACT_ID` can never fail the request or roll back the registration. The existing `getSorobanEventTimeline()` "never throw, return an `errors` array" convention is the model to follow — e.g. a `mirrorRegistrationToSoroban()` helper that returns a result/error object rather than throwing, called with its outcome logged (not surfaced as a request failure) and never `await`-blocking the HTTP response on-chain confirmation.
-- **Zero on-chain dependency for the core flow:** contributors must be able to register successfully with `SOROBAN_CONTRACT_ID` unset entirely, exactly as today.
-- **Where it would live:** a new `src/lib/soroban-register.ts` (or an addition to `src/lib/soroban.ts`) exporting the write helper, invoked from `/api/register`'s `POST` handler per the ordering above.
+- **Ordering:** the contract write is attempted in `/api/register`'s `POST` handler **after** `prisma.registration.upsert()` resolves successfully — never before, and never in a way that blocks or gates the Postgres write. Implementation: `mirrorRegistrationToSoroban(registration, githubUsername)` is called without `await`, allowing it to complete asynchronously after the HTTP response returns.
+- **Best-effort and failure-isolated:** the write attempt is wrapped in `mirrorRegistrationToSoroban()` (`src/lib/soroban-register.ts`) so that a Soroban RPC outage, rate limit, or a missing `SOROBAN_CONTRACT_ID` can never fail the request. Follows the `getSorobanEventTimeline()` "never throw, return an `errors` array" convention — returns a `SorobanRegistrationResult` with `success` boolean and `errors[]`. Errors are logged to console but never surfaced as a request failure.
+- **Zero on-chain dependency for the core flow:** contributors register successfully with `SOROBAN_CONTRACT_ID` unset (the write is skipped with no errors). Registration works end-to-end even if Soroban is down.
+- **Implementation details:**
+  - Uses `stellar-sdk` `rpc.Server` to connect to `SOROBAN_RPC_URL`
+  - Signs transactions with `SOROBAN_SECRET_KEY` (fee-payer secret key)
+  - Calls `register(contributor: Address, github_username: Bytes)` on the contract
+  - Handles `PENDING` status (submitted but not yet confirmed)
+  - Handles `ERROR` status with specific error codes
+  - 30-second timeout for transaction submission
+  - Never throws — all errors are caught and returned in the `errors` array
 
 ### Edge cases
 
@@ -302,6 +432,106 @@ No code path writes to a Soroban contract today. `/api/register` (`src/app/api/r
 ### Out of scope for this iteration
 
 End-to-end/browser coverage (e.g. Playwright) for the event timeline panel and any future write-through flow is a deliberate follow-up, not a gap in this pass — this repo currently has no Playwright/e2e harness, and adding one is a separate infrastructure change (new CI browser setup) tracked independently of this documentation and unit/API test work.
+
+---
+
+## Webhook module layout
+
+GitHub webhook logic is separated from Next.js App Router route files so that:
+
+1. **Next.js static analysis** sees only HTTP handler exports (`GET`, `POST`, `OPTIONS`, and `runtime` / `dynamic` config) in `route.ts` files — no stray helpers that the bundler might interpret as additional route entries.
+2. **Shared helpers can be imported** from the replay route and tests without creating cross-route import cycles.
+3. **Tree-shaking** keeps the edge/Node.js bundle lean; helpers that are only needed server-side are still marked `import "server-only"` inside the lib module.
+
+### File layout
+
+```
+src/
+  lib/
+    github-org-membership-webhook.ts   ← ALL shared logic lives here
+      verifyWebhookSignature()           HMAC-SHA256, constant-time compare
+      processGithubOrgMembershipEvent()  Prisma upsert + audit log
+      GithubOrgMembershipPayload (type)
+      WebhookVerificationResult (type)
+      ProcessEventResult (type)
+
+  app/api/webhooks/
+    github-org-membership/
+      route.ts          ← exports POST only; imports from @/lib
+      replay/
+        route.ts        ← maintainer-only replay; imports from @/lib (not from sibling route)
+
+tests/api/
+  github-org-membership-webhook.test.ts
+    ├── verifyWebhookSignature  (pure unit — lib path)
+    ├── processGithubOrgMembershipEvent  (lib path)
+    ├── POST /api/webhooks/github-org-membership  (route)
+    └── POST /api/webhooks/github-org-membership/replay  (route)
+```
+
+### Adding a new webhook type
+
+1. Create `src/lib/<event-type>-webhook.ts` with `verify*` and `process*` helpers.
+2. Create `src/app/api/webhooks/<event-type>/route.ts` that imports from the lib module.
+3. Add tests under `tests/api/<event-type>-webhook.test.ts` importing from lib, not from the route.
+4. Document the module here.
+
+### Environment variables
+
+| Variable | Purpose |
+|----------|---------|
+| `GITHUB_WEBHOOK_SECRET` | HMAC secret shared with GitHub; required for all `github-org-membership` webhooks |
+### Unified Transactional Outbox for Soroban write-through (#199, #488)
+
+To ensure reliable write-through to Soroban without losing registrations during chain or RPC outages, while supporting fast, hermetic unit tests:
+
+1. **Unified Outbox Abstraction (`src/lib/soroban-outbox.ts`):** Unifies production transactional writes with an in-memory adapter sink (`setSorobanOutboxSink`) for unit tests. In production runtime, `enqueueSorobanOutbox()` creates persistent `SorobanOutbox` rows in PostgreSQL (scoped by `maintainerOrgId`). In tests, the registered sink handles delivery directly in memory without database dependencies.
+2. **Transactional Enqueue:** During registration write paths, `enqueueSorobanOutbox()` stages the mirror payload with `status: PENDING`. Duplicate exports have been consolidated under `src/lib/soroban-outbox.ts`.
+3. **Outbox Worker (`processSorobanOutbox()`):** Background workers (`scripts/worker.mjs` / `src/lib/soroban-outbox-worker.ts`) periodically fetch pending outbox rows and invoke `mirrorRegistrationToSoroban()`.
+4. **At-Least-Once Delivery & Audit Trail:** On success, outbox records transition to `COMPLETED`. On failures, records retry with exponential backoff up to `maxAttempts` (default 5). If `maxAttempts` is exhausted, status transitions to `FAILED` and an audit event (`soroban_outbox_exhausted`) is logged.
+
+---
+
+### Soroban Event Cursor & Backfill (#198)
+
+To support historical event timeline syncing without missing past ledger events:
+
+1. **Persistent Event Cursor (`SorobanEventCursor`):** Stores event paging tokens and cursors per `maintainerOrgId` + `eventType` in `prisma.sorobanEventCursor`.
+2. **Background Backfill (`backfillSorobanEvents()`):** `src/lib/soroban-events-backfill.ts` processes historical events idempotently and persists the latest paging token.
+3. **Non-Blocking:** Backfills run asynchronously in background workers without blocking HTTP requests.
+
+---
+
+## CORS Policy
+
+The trustbridge-action runs **server-side** (Node.js fetch in GitHub Actions), so CORS does not apply to its calls. However, the public endpoints `/api/actions/lookup` and `/api/check` may be called from browser-based tools (Swagger UI, custom scripts), so we lock them down defensively.
+
+### Configuration
+
+CORS headers are applied via `next.config.mjs` → `headers()`:
+
+| Header | Value |
+|--------|-------|
+| `Access-Control-Allow-Origin` | `https://github.com` |
+| `Access-Control-Allow-Methods` | `GET, POST, OPTIONS` |
+| `Access-Control-Allow-Headers` | `Content-Type, Authorization, X-Cache-Bypass` |
+| `Access-Control-Max-Age` | `86400` (24 hours) |
+| `Vary` | `Origin` |
+
+### Security constraints
+
+- **Single origin, no multi-value lists.** The CORS specification requires `Access-Control-Allow-Origin` to specify either a single origin or `*`. Browsers reject comma-separated origin lists. Next.js statically sets `ALLOWED_ORIGIN`. Dynamic origin checking across multiple domains can be handled dynamically in middleware or route handlers if needed.
+- **No wildcard (`*`) with credentials.** The allowed origin is explicitly specified.
+- **Default deny.** Only the two paths above receive CORS headers. Authenticated endpoints (`/api/register`, `/api/contributors`, `/api/stats`) are same-origin only.
+- **No credentials header.** `Access-Control-Allow-Credentials` is intentionally omitted — these endpoints don't use cookies.
+- **To configure the allowed origin**, update `ALLOWED_ORIGIN` in `next.config.mjs`.
+
+### Tests
+
+CORS configuration is tested in `tests/unit/cors.test.ts`:
+- Verifies correct origins are allowed
+- Verifies no wildcard origin
+- Verifies authenticated endpoints are excluded
 
 ---
 

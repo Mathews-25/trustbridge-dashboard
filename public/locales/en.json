@@ -1,0 +1,75 @@
+{
+  "common": {
+    "loading": "Loading",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "export": "Export"
+  },
+  "header": {
+    "title": "TrustBridge",
+    "dashboard": "Dashboard",
+    "register": "Register",
+    "settings": "Settings",
+    "signOut": "Sign out",
+    "switchLanguage": "Language"
+  },
+  "dashboard": {
+    "title": "Contributor Readiness Dashboard",
+    "description": "Track contributor readiness for payouts",
+    "table": {
+      "contributors": "Contributors",
+      "github": "GitHub",
+      "stellarAddress": "Stellar address",
+      "status": "Status",
+      "verified": "Verified",
+      "xlmBalance": "XLM Balance",
+      "spendableXlmBalance": "Spendable XLM",
+      "lastChecked": "Last checked",
+      "actions": "Actions",
+      "searchPlaceholder": "Search by username or address",
+      "filterAll": "All",
+      "filterReady": "Ready",
+      "filterLowReserve": "Low reserve",
+      "filterNeedsAttention": "Needs attention"
+    },
+    "export": {
+      "csv": "Export CSV",
+      "json": "Export JSON",
+      "stale": "Export CSV (stale)",
+      "jsonStale": "Export JSON (stale)",
+      "confirm": "Export contributor data?",
+      "confirmMessage": "This downloads {count} contributor{plural} to your device, including GitHub handles, Stellar addresses and balances. Handle the file as personal data."
+    },
+    "emptyState": {
+      "noContributors": "No contributors registered yet",
+      "notRegistered": "You are not registered yet",
+      "description": "Share the registration link with wave contributors so they can connect a Stellar payout address and appear in this table.",
+      "notRegisteredDescription": "Register your Stellar payout address to join the wave and show up in the readiness table.",
+      "actionLabel": "Open register page",
+      "copyLink": "Copy register link"
+    }
+  },
+  "register": {
+    "title": "Register",
+    "description": "Register your Stellar address for payouts",
+    "connectGitHub": "Connect GitHub",
+    "connectWallet": "Connect Stellar Wallet",
+    "form": {
+      "email": "Email",
+      "gitHubUsername": "GitHub Username",
+      "stellarAddress": "Stellar Address",
+      "submit": "Register"
+    },
+    "success": "Registration successful",
+    "error": "Registration failed"
+  },
+  "date": {
+    "formats": {
+      "short": "{year}-{month}-{day}",
+      "long": "{day} {month} {year}"
+    }
+  }
+}

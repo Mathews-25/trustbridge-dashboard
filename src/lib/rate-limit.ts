@@ -1,15 +1,51 @@
+/**
+ * @module rate-limit
+ *
+ * Per-IP sliding-window rate limiter for `POST /api/check`.
+ *
+ * ## ⚠️ Process-local store — multi-instance caveat
+ *
+ * The `store` below is a plain in-process `Map`.  It is **not** shared across
+ * Node.js processes, server replicas, or serverless function invocations.
+ *
+ * Consequence: on a horizontally scaled deployment (multiple Vercel containers,
+ * a Kubernetes replica set, a PM2 cluster, or a burst of serverless cold-starts)
+ * each instance enforces its own independent counter.  A client that lands on a
+ * different instance for each request can make up to
+ * `RATE_LIMIT_MAX_REQUESTS × <instance_count>` requests before any one process
+ * throttles it.
+ *
+ * This is acceptable for a single-process deployment. For multi-instance
+ * environments, choose one of the recommended mitigations documented in
+ * `docs/ENVIRONMENT.md` (§ Rate limiting) and `docs/LOGGING_AND_PAGINATION.md`
+ * (§ Rate Limiting):
+ *
+ *   - Edge / CDN rate limiting (Vercel WAF, Cloudflare, AWS WAF) — recommended
+ *   - Sticky sessions (IP affinity at the load balancer)
+ *   - Redis-backed store (e.g. `@upstash/ratelimit`) for exact cluster-wide counts
+ */
 import { NextRequest } from "next/server";
 
 interface RateLimitEntry {
   timestamps: number[];
 }
 
-const store = new Map<string, RateLimitEntry>();
-
 export interface RateLimitOptions {
   windowMs: number;
   maxRequests: number;
 }
+
+export interface RateLimitMetrics {
+  activeIdentifiers: number;
+  totalAllowed: number;
+  totalBlocked: number;
+  options: RateLimitOptions;
+  processLocal: boolean;
+}
+
+const store = new Map<string, RateLimitEntry>();
+let totalAllowedRequests = 0;
+let totalBlockedRequests = 0;
 
 function getDefaultOptions(): RateLimitOptions {
   const windowMs = Number.parseInt(
@@ -26,10 +62,6 @@ function getDefaultOptions(): RateLimitOptions {
   };
 }
 
-/**
- * Check if a request from the given identifier is within the rate limit.
- * Uses an in-memory sliding window.
- */
 export function checkRateLimit(
   identifier: string,
   options?: Partial<RateLimitOptions>
@@ -40,6 +72,7 @@ export function checkRateLimit(
 
   if (!entry) {
     store.set(identifier, { timestamps: [now] });
+    totalAllowedRequests++;
     return { allowed: true, retryAfter: 0, remaining: opts.maxRequests - 1 };
   }
 
@@ -54,11 +87,13 @@ export function checkRateLimit(
       Math.ceil((oldest + opts.windowMs - now) / 1000)
     );
     store.set(identifier, { timestamps: validTimestamps });
+    totalBlockedRequests++;
     return { allowed: false, retryAfter, remaining: 0 };
   }
 
   validTimestamps.push(now);
   store.set(identifier, { timestamps: validTimestamps });
+  totalAllowedRequests++;
   return {
     allowed: true,
     retryAfter: 0,
@@ -66,9 +101,27 @@ export function checkRateLimit(
   };
 }
 
-/**
- * Extract client IP from common proxy headers.
- */
+export function getRateLimitMetrics(): RateLimitMetrics {
+  const now = Date.now();
+  const opts = getDefaultOptions();
+  let activeCount = 0;
+
+  for (const entry of Array.from(store.values())) {
+    const hasRecent = entry.timestamps.some((t) => now - t < opts.windowMs);
+    if (hasRecent) {
+      activeCount++;
+    }
+  }
+
+  return {
+    activeIdentifiers: activeCount,
+    totalAllowed: totalAllowedRequests,
+    totalBlocked: totalBlockedRequests,
+    options: { ...opts },
+    processLocal: true,
+  };
+}
+
 export function extractClientIp(request: NextRequest): string {
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
@@ -82,6 +135,35 @@ export function extractClientIp(request: NextRequest): string {
 }
 
 /**
+ * Build standard RateLimit-* response headers (draft-ietf-httpapi-ratelimit-headers-07).
+ *
+ * - `RateLimit-Limit` — max requests per window
+ * - `RateLimit-Remaining` — requests left in current window
+ * - `RateLimit-Reset` — seconds until the window resets
+ * - `Retry-After` — seconds to wait (only set when `retryAfter > 0`)
+ *
+ * Multi-instance note: in-memory counters are per-process. When running
+ * behind a load balancer with N instances, the effective limit is roughly
+ * N × maxRequests. This is documented in ENVIRONMENT.md.
+ */
+export function buildRateLimitHeaders(
+  result: { allowed: boolean; retryAfter: number; remaining: number },
+  maxRequests: number
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    "RateLimit-Limit": String(maxRequests),
+    "RateLimit-Remaining": String(Math.max(0, result.remaining)),
+    "RateLimit-Reset": String(Math.max(0, result.retryAfter)),
+  };
+
+  if (!result.allowed && result.retryAfter > 0) {
+    headers["Retry-After"] = String(result.retryAfter);
+  }
+
+  return headers;
+}
+
+/**
  * Reset rate limit state for a given identifier or all identifiers.
  * Primarily for testing.
  */
@@ -90,5 +172,7 @@ export function resetRateLimit(identifier?: string): void {
     store.delete(identifier);
   } else {
     store.clear();
+    totalAllowedRequests = 0;
+    totalBlockedRequests = 0;
   }
 }

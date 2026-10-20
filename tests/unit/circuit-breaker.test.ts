@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   CircuitBreaker,
   CircuitBreakerOpenError,
+  type CircuitBreakerTripEvent,
 } from "@/lib/circuit-breaker";
 
 describe("CircuitBreaker", () => {
@@ -63,7 +64,6 @@ describe("CircuitBreaker", () => {
 
     vi.advanceTimersByTime(1001);
 
-    // First call after recovery should be allowed (HALF_OPEN)
     const result = await cb.call(() => Promise.resolve(42));
     expect(result).toBe(42);
     expect(cb.getState()).toBe("CLOSED");
@@ -114,9 +114,8 @@ describe("CircuitBreaker", () => {
     await expect(cb.call(() => Promise.reject(new Error("fail")))).rejects.toThrow("fail");
     await cb.call(() => Promise.resolve(42));
 
-    // Failure count should be reset after success
     await expect(cb.call(() => Promise.reject(new Error("fail")))).rejects.toThrow("fail");
-    expect(cb.getState()).toBe("CLOSED"); // still closed because threshold is 3
+    expect(cb.getState()).toBe("CLOSED");
   });
 
   it("uses env defaults when not set", async () => {
@@ -148,7 +147,6 @@ describe("CircuitBreaker", () => {
     vi.stubEnv("HORIZON_CB_SUCCESS_THRESHOLD", "not-a-number");
 
     const cb = new CircuitBreaker();
-    // Default threshold is 5, so 1 failure shouldn't open
     await expect(cb.call(() => Promise.reject(new Error("fail")))).rejects.toThrow("fail");
     expect(cb.getState()).toBe("CLOSED");
 
@@ -171,5 +169,136 @@ describe("CircuitBreaker", () => {
     expect(metrics2.state).toBe("OPEN");
     expect(metrics2.failureCount).toBe(1);
     expect(metrics2.lastFailureTime).not.toBeNull();
+  });
+
+  describe("trip history", () => {
+    it("records a trip event when circuit opens", async () => {
+      const cb = new CircuitBreaker({
+        failureThreshold: 2,
+        successThreshold: 1,
+        recoveryTimeoutMs: 1000,
+      });
+
+      expect(cb.getMetrics().totalTrips).toBe(0);
+      expect(cb.getMetrics().recentTrips).toHaveLength(0);
+
+      await expect(cb.call(() => Promise.reject(new Error("fail")))).rejects.toThrow("fail");
+      expect(cb.getMetrics().totalTrips).toBe(0);
+      expect(cb.getMetrics().recentTrips).toHaveLength(0);
+
+      await expect(cb.call(() => Promise.reject(new Error("fail")))).rejects.toThrow("fail");
+      const metrics = cb.getMetrics();
+      expect(metrics.totalTrips).toBe(1);
+      expect(metrics.recentTrips).toHaveLength(1);
+      expect(metrics.recentTrips[0].trippedAt).toBeGreaterThan(0);
+      expect(metrics.recentTrips[0].failureCountAtTrip).toBe(2);
+      expect(metrics.recentTrips[0].recoveredAt).toBeNull();
+    });
+
+    it("sets recoveredAt when circuit closes after success", async () => {
+      const cb = new CircuitBreaker({
+        failureThreshold: 1,
+        successThreshold: 1,
+        recoveryTimeoutMs: 500,
+      });
+
+      await expect(cb.call(() => Promise.reject(new Error("fail")))).rejects.toThrow("fail");
+      const tripBefore = cb.getMetrics().recentTrips[0];
+      expect(tripBefore.recoveredAt).toBeNull();
+
+      vi.advanceTimersByTime(501);
+      await cb.call(() => Promise.resolve("ok"));
+
+      const tripAfter = cb.getMetrics().recentTrips[0];
+      expect(tripAfter.recoveredAt).not.toBeNull();
+      expect(tripAfter.recoveredAt!).toBeGreaterThan(tripAfter.trippedAt);
+    });
+
+    it("increments totalTrips across multiple open/close cycles", async () => {
+      const cb = new CircuitBreaker({
+        failureThreshold: 1,
+        successThreshold: 1,
+        recoveryTimeoutMs: 100,
+      });
+
+      for (let i = 0; i < 3; i++) {
+        await expect(cb.call(() => Promise.reject(new Error("fail")))).rejects.toThrow("fail");
+        vi.advanceTimersByTime(101);
+        await cb.call(() => Promise.resolve("ok"));
+      }
+
+      const metrics = cb.getMetrics();
+      expect(metrics.totalTrips).toBe(3);
+      expect(metrics.recentTrips).toHaveLength(3);
+      for (const trip of metrics.recentTrips) {
+        expect(trip.recoveredAt).not.toBeNull();
+      }
+    });
+
+    it("caps recent trip history at MAX_TRIP_HISTORY (20)", async () => {
+      const cb = new CircuitBreaker({
+        failureThreshold: 1,
+        successThreshold: 1,
+        recoveryTimeoutMs: 10,
+      });
+
+      for (let i = 0; i < 25; i++) {
+        await expect(cb.call(() => Promise.reject(new Error("fail")))).rejects.toThrow("fail");
+        vi.advanceTimersByTime(11);
+        await cb.call(() => Promise.resolve("ok"));
+      }
+
+      const metrics = cb.getMetrics();
+      expect(metrics.totalTrips).toBe(25);
+      expect(metrics.recentTrips).toHaveLength(20);
+    });
+
+    it("reports current trip as still open if not recovered", async () => {
+      const cb = new CircuitBreaker({
+        failureThreshold: 1,
+        successThreshold: 2,
+        recoveryTimeoutMs: 100,
+      });
+
+      await expect(cb.call(() => Promise.reject(new Error("fail")))).rejects.toThrow("fail");
+      vi.advanceTimersByTime(101);
+      await cb.call(() => Promise.resolve("ok"));
+
+      const metrics = cb.getMetrics();
+      expect(metrics.recentTrips).toHaveLength(1);
+      expect(metrics.recentTrips[0].recoveredAt).toBeNull();
+      expect(cb.getState()).toBe("HALF_OPEN");
+    });
+  });
+
+  describe("getOptions", () => {
+    it("returns a copy of the configured options", () => {
+      const opts = {
+        failureThreshold: 7,
+        successThreshold: 3,
+        recoveryTimeoutMs: 60_000,
+      };
+      const cb = new CircuitBreaker(opts);
+      const got = cb.getOptions();
+      expect(got).toEqual(opts);
+      got.failureThreshold = 999;
+      expect(cb.getOptions().failureThreshold).toBe(7);
+    });
+
+    it("includes successThreshold in getMetrics options", () => {
+      const cb = new CircuitBreaker({
+        failureThreshold: 1,
+        successThreshold: 5,
+        recoveryTimeoutMs: 1000,
+      });
+      expect(cb.getMetrics().options.successThreshold).toBe(5);
+    });
+  });
+
+  describe("processLocal flag", () => {
+    it("sets processLocal: true in metrics to acknowledge in-memory scope", () => {
+      const cb = new CircuitBreaker();
+      expect(cb.getMetrics().processLocal).toBe(true);
+    });
   });
 });

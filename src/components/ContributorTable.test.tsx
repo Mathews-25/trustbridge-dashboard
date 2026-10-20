@@ -1,167 +1,386 @@
-/**
- * Tests for ContributorTable.tsx
- *
- * The component itself is a client component that depends on the DOM and
- * react-dom — we exercise its exported pure helper (`exportContributorsCsv`)
- * and verify that the ref declarations in the component body are present and
- * correct by doing a static source inspection.
- *
- * For interactive rendering tests (column picker open/close, click-outside,
- * keyboard Escape) use a Playwright/jsdom setup; that infrastructure is
- * tracked separately and is out of scope for this unit test pass.
- */
+import React from "react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { describe, expect, it } from "vitest";
-import { exportContributorsCsv } from "@/components/ContributorTable";
-import type { ContributorRow } from "@/types";
-import * as fs from "node:fs";
-import * as path from "node:path";
+vi.mock("@/lib/csv", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/csv")>(
+    "@/lib/csv"
+  );
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
-function makeRow(overrides: Partial<ContributorRow> = {}): ContributorRow {
   return {
-    id: "row-1",
-    githubUsername: "octocat",
-    stellarAddress: "GBSX3XVYB7XOQY4LZGQ7ZXZQY4LZGQ7ZXZQY4LZGQ7ZXZQY4LZG",
-    funded: true,
-    trustlineReady: true,
-    trustlineAuthorized: true,
-    xlmBalance: "100",
-    spendableXlmBalance: "98",
-    lastCheckedAt: new Date().toISOString(),
-    readiness: "ready",
-    verified: true,
-    ...overrides,
+    ...actual,
+    buildCsvFilename: vi.fn(() => "trustbridge-wave-2026-07-26.csv"),
+    downloadCsv: vi.fn(),
+    // jsdom has no URL.createObjectURL, and the JSON export path now runs for
+    // real once the confirmation dialog is accepted.
+    buildJsonFilename: vi.fn(() => "trustbridge-wave-2026-07-26.json"),
+    downloadJson: vi.fn(),
   };
-}
-
-// ---------------------------------------------------------------------------
-// exportContributorsCsv (pure helper, no DOM needed)
-// ---------------------------------------------------------------------------
-
-describe("exportContributorsCsv", () => {
-  it("is exported as a named function", () => {
-    expect(typeof exportContributorsCsv).toBe("function");
-  });
-
-  it("returns false when stale and user cancels (window.confirm = false)", () => {
-    const staleRow = makeRow({
-      lastCheckedAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-    });
-
-    // Simulate window.confirm returning false (user cancels)
-    const originalConfirm = globalThis.window?.confirm;
-    Object.defineProperty(globalThis, "window", {
-      writable: true,
-      value: { confirm: () => false },
-    });
-
-    const result = exportContributorsCsv([staleRow]);
-    expect(result).toBe(false);
-
-    // Restore
-    if (originalConfirm !== undefined) {
-      Object.defineProperty(globalThis, "window", {
-        writable: true,
-        value: { confirm: originalConfirm },
-      });
-    }
-  });
 });
 
-// ---------------------------------------------------------------------------
-// Ref declaration integrity (static source check)
-//
-// This test reads the component source and asserts that:
-// 1. Each required ref is declared exactly once.
-// 2. No ref name appears in a duplicate `useRef` call.
-//
-// This catches the exact regression described in issue #495 — where refs
-// were declared twice, causing ESLint duplicate-identifier errors.
-// ---------------------------------------------------------------------------
+import {
+  ContributorTable,
+  exportContributorsCsv,
+} from "@/components/ContributorTable";
+import { downloadCsv } from "@/lib/csv";
+import type { ContributorRow } from "@/types";
 
-const COMPONENT_SOURCE = fs.readFileSync(
-  path.resolve(__dirname, "ContributorTable.tsx"),
-  "utf-8"
-);
+describe("ContributorTable", () => {
+  const contributors: ContributorRow[] = [
+    {
+      id: "row-1",
+      githubUsername: "alice",
+      stellarAddress: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      funded: true,
+      trustlineReady: true,
+      trustlineAuthorized: true,
+      verified: true,
+      xlmBalance: "10",
+      spendableXlmBalance: "8",
+      readiness: "ready",
+      lastCheckedAt: "2026-07-26T09:00:00.000Z",
+    },
+    {
+      id: "row-2",
+      githubUsername: "bob",
+      stellarAddress: "GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+      funded: true,
+      trustlineReady: false,
+      trustlineAuthorized: false,
+      verified: false,
+      xlmBalance: "2",
+      spendableXlmBalance: "0.2",
+      readiness: "not_ready",
+      lastCheckedAt: "2026-07-26T09:00:00.000Z",
+    },
+  ];
 
-const REQUIRED_REFS = [
-  "csvExportRef",
-  "jsonExportRef",
-  "columnPickerRef",
-  "columnPickerToggleRef",
-  "paletteRef",
-  "paletteOpenerRef",
-  "searchInputRef",
-] as const;
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
-describe("ContributorTable ref declarations (no duplicates)", () => {
-  for (const refName of REQUIRED_REFS) {
-    it(`${refName} is declared exactly once with useRef`, () => {
-      // Match `const refName = useRef` declarations only (not usage sites).
-      const declarationRegex = new RegExp(
-        `const\\s+${refName}\\s*=\\s*useRef`,
-        "g"
+  describe("empty states", () => {
+    it("shows a loading state instead of an empty state while data is loading", () => {
+      render(<ContributorTable contributors={[]} isLoading />);
+
+      expect(screen.getByTestId("contributors-loading")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("contributors-zero-empty")
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows a zero-contributors empty state with maintainer next actions", () => {
+      render(<ContributorTable contributors={[]} viewerRole="maintainer" />);
+
+      const emptyState = screen.getByTestId("contributors-zero-empty");
+      expect(emptyState).toHaveTextContent(/No contributors registered yet/i);
+      expect(emptyState).toHaveTextContent(/Share the registration link/i);
+      expect(
+        screen.getByRole("link", { name: /Open register page/i })
+      ).toHaveAttribute("href", "/register");
+      expect(
+        screen.getByRole("button", { name: /Copy register link/i })
+      ).toBeInTheDocument();
+    });
+
+    it("shows contributor-specific copy in the zero-contributors empty state", () => {
+      render(<ContributorTable contributors={[]} viewerRole="contributor" />);
+
+      const emptyState = screen.getByTestId("contributors-zero-empty");
+      expect(emptyState).toHaveTextContent(/You are not registered yet/i);
+      expect(emptyState).toHaveTextContent(/Register your Stellar payout address/i);
+      expect(
+        screen.getByRole("link", { name: /Register now/i })
+      ).toHaveAttribute("href", "/register");
+      expect(
+        screen.queryByRole("button", { name: /Copy register link/i })
+      ).not.toBeInTheDocument();
+    });
+
+    it("distinguishes search-empty from zero-contributors empty", async () => {
+      const user = userEvent.setup();
+      render(<ContributorTable contributors={contributors} />);
+
+      const searchInput = screen.getByLabelText(
+        /Search contributors by GitHub username or Stellar address/i
       );
-      const matches = COMPONENT_SOURCE.match(declarationRegex) ?? [];
-      expect(matches).toHaveLength(1);
+      await user.type(searchInput, "zzz_no_match");
+
+      expect(screen.getAllByTestId("contributors-filtered-empty")[0]).toHaveTextContent(
+        /No contributors match "zzz_no_match"/i
+      );
+      expect(
+        screen.queryByTestId("contributors-zero-empty")
+      ).not.toBeInTheDocument();
     });
-  }
 
-  it("no ref name appears in a second const useRef declaration (duplicate check)", () => {
-    // Collect all `const <name> = useRef` declarations
-    const allDeclarations =
-      COMPONENT_SOURCE.match(/const\s+(\w+)\s*=\s*useRef/g) ?? [];
+    it("distinguishes filter-empty from zero-contributors empty", async () => {
+      const user = userEvent.setup();
+      render(<ContributorTable contributors={contributors} />);
 
-    const seen = new Set<string>();
-    const duplicates: string[] = [];
+      await user.click(screen.getByRole("button", { name: /^Low reserve$/i }));
 
-    for (const decl of allDeclarations) {
-      const match = decl.match(/const\s+(\w+)/);
-      if (match) {
-        const name = match[1];
-        if (seen.has(name)) {
-          duplicates.push(name);
-        }
-        seen.add(name);
-      }
-    }
-
-    expect(duplicates).toHaveLength(0);
+      expect(screen.getAllByTestId("contributors-filtered-empty")[0]).toHaveTextContent(
+        /No contributors match this filter/i
+      );
+      expect(
+        screen.queryByTestId("contributors-zero-empty")
+      ).not.toBeInTheDocument();
+    });
   });
 
-  it("all required refs are attached to JSX elements (ref={refName})", () => {
-    for (const refName of REQUIRED_REFS) {
-      expect(COMPONENT_SOURCE).toContain(`ref={${refName}}`);
-    }
-  });
-});
+  it("renders accessible table controls and row diagnostics", () => {
+    render(<ContributorTable contributors={contributors} />);
 
-// ---------------------------------------------------------------------------
-// Column picker ref wiring
-// ---------------------------------------------------------------------------
-
-describe("Column picker ref correctness", () => {
-  it("columnPickerRef is attached to the picker panel div", () => {
-    // The panel div should have both the ref and an id for aria
-    expect(COMPONENT_SOURCE).toContain('ref={columnPickerRef}');
-    expect(COMPONENT_SOURCE).toContain('id="column-picker-panel"');
+    expect(
+      screen.getByLabelText(/Search contributors by GitHub username or Stellar address/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Contributor payout readiness table with per-row Horizon debug details/i)
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Horizon debug").length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("columnheader", { name: /GitHub/i })
+    ).toHaveAttribute("aria-sort", "ascending");
   });
 
-  it("columnPickerToggleRef is attached to the toggle button", () => {
-    expect(COMPONENT_SOURCE).toContain('ref={columnPickerToggleRef}');
-    expect(COMPONENT_SOURCE).toContain('aria-controls="column-picker-panel"');
+  it("opens the command palette and applies keyboard commands", async () => {
+    const user = userEvent.setup();
+    render(<ContributorTable contributors={contributors} onExport={vi.fn()} />);
+
+    await user.keyboard("{Control>}k{/Control}");
+    const palette = screen.getByRole("dialog", { name: /command palette/i });
+    expect(palette).toBeInTheDocument();
+
+    const readyButtonInPalette = within(palette).getByRole("button", { name: "Ready" });
+    await user.click(readyButtonInPalette);
+    expect(screen.getByRole("button", { name: /^Ready$/i })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.click(screen.getByRole("button", { name: /Focus table search/i }));
+    expect(screen.getByLabelText(/Search contributors by GitHub username/i)).toHaveFocus();
   });
 
-  it("click-outside handler references columnPickerRef and columnPickerToggleRef", () => {
-    expect(COMPONENT_SOURCE).toContain("columnPickerRef.current");
-    expect(COMPONENT_SOURCE).toContain("columnPickerToggleRef.current");
+  it("routes palette export through the existing confirmation dialog", async () => {
+    const user = userEvent.setup();
+    render(<ContributorTable contributors={contributors} onExport={vi.fn()} />);
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Download CSV/i })).toBeInTheDocument();
   });
 
-  it("focus is returned to columnPickerToggleRef when picker closes", () => {
-    expect(COMPONENT_SOURCE).toContain("columnPickerToggleRef.current?.focus()");
+  it("exports derived proof and horizon debug details", () => {
+    const exported = exportContributorsCsv(contributors, true);
+
+    expect(exported).toBe(true);
+    expect(downloadCsv).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(downloadCsv).mock.calls[0][1]).toContain(
+      "TrustBridge Freighter ownership proof"
+    );
+    expect(vi.mocked(downloadCsv).mock.calls[0][1]).toContain(
+      "Required USDC trustline is missing."
+    );
+  });
+
+  // ── Export confirmation (issue #155) ────────────────────────────────────
+
+  describe("export confirmation dialog", () => {
+    /** `bob` was checked long enough ago to be stale in every test run. */
+    const staleContributors: ContributorRow[] = [
+      contributors[0],
+      { ...contributors[1], lastCheckedAt: null },
+    ];
+
+    it("does not export until the confirmation is accepted", async () => {
+      const user = userEvent.setup();
+      const onExport = vi.fn();
+      render(
+        <ContributorTable contributors={contributors} onExport={onExport} />
+      );
+
+      await user.click(screen.getByRole("button", { name: /Export CSV/i }));
+
+      expect(onExport).not.toHaveBeenCalled();
+      expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /Download CSV/i }));
+      expect(onExport).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not export when the confirmation is cancelled", async () => {
+      const user = userEvent.setup();
+      const onExport = vi.fn();
+      render(
+        <ContributorTable contributors={contributors} onExport={onExport} />
+      );
+
+      await user.click(screen.getByRole("button", { name: /Export CSV/i }));
+      await user.keyboard("{Escape}");
+
+      expect(onExport).not.toHaveBeenCalled();
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    });
+
+    it("returns focus to the export button after cancelling", async () => {
+      const user = userEvent.setup();
+      render(
+        <ContributorTable contributors={contributors} onExport={vi.fn()} />
+      );
+
+      const exportButton = screen.getByRole("button", { name: /Export CSV/i });
+      await user.click(exportButton);
+      await user.keyboard("{Escape}");
+
+      expect(exportButton).toHaveFocus();
+    });
+
+    it("names the row count and the PII in the confirmation", async () => {
+      const user = userEvent.setup();
+      render(
+        <ContributorTable contributors={contributors} onExport={vi.fn()} />
+      );
+
+      await user.click(screen.getByRole("button", { name: /Export CSV/i }));
+
+      const dialog = screen.getByRole("alertdialog");
+      expect(dialog).toHaveTextContent(/2 contributors/i);
+      expect(dialog).toHaveTextContent(/personal data/i);
+    });
+
+    it("carries the stale-data warning into the dialog", async () => {
+      const user = userEvent.setup();
+      render(
+        <ContributorTable contributors={staleContributors} onExport={vi.fn()} />
+      );
+
+      await user.click(
+        screen.getByRole("button", { name: /Export CSV \(stale\)/i })
+      );
+
+      const dialog = screen.getByRole("alertdialog");
+      expect(dialog).toHaveTextContent(/have not been verified/i);
+      expect(dialog).toHaveTextContent(/may cause payout failures/i);
+    });
+
+    it("does not re-prompt with window.confirm once the dialog was accepted", async () => {
+      // The dialog already showed the staleness warning, so the export runs
+      // forced — a second native prompt is exactly the friction that gets
+      // confirmations clicked through without reading.
+      const user = userEvent.setup();
+      const confirmSpy = vi
+        .spyOn(window, "confirm")
+        .mockReturnValue(true);
+
+      render(
+        <ContributorTable contributors={staleContributors} onExport={vi.fn()} />
+      );
+
+      await user.click(
+        screen.getByRole("button", { name: /Export JSON \(stale\)/i })
+      );
+      await user.click(screen.getByRole("button", { name: /Download JSON/i }));
+
+      expect(confirmSpy).not.toHaveBeenCalled();
+      confirmSpy.mockRestore();
+    });
+
+    it("confirms the JSON export separately from the CSV export", async () => {
+      const user = userEvent.setup();
+      render(
+        <ContributorTable contributors={contributors} onExport={vi.fn()} />
+      );
+
+      await user.click(screen.getByRole("button", { name: /Export JSON/i }));
+
+      expect(
+        screen.getByRole("button", { name: /Download JSON/i })
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Download CSV/i })
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("ban and unban confirmation dialog", () => {
+    const bannedContributor: ContributorRow = {
+      ...contributors[0],
+      banned: true,
+      banReason: "Policy violation",
+    };
+
+    it("requires confirmation to ban and leaves the contributor unchanged when cancelled", async () => {
+      const user = userEvent.setup();
+      const onBanToggle = vi.fn().mockResolvedValue(undefined);
+      render(
+        <ContributorTable
+          contributors={contributors}
+          onBanToggle={onBanToggle}
+        />
+      );
+
+      const banButton = screen.getByRole("button", { name: "Ban alice" });
+      await user.click(banButton);
+
+      let dialog = screen.getByRole("alertdialog");
+      expect(dialog).toHaveTextContent(/reject all current and future registration or recheck attempts/i);
+      expect(onBanToggle).not.toHaveBeenCalled();
+      await user.type(screen.getByTestId("ban-reason-input"), "Policy violation");
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(onBanToggle).not.toHaveBeenCalled();
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+      expect(banButton).toHaveTextContent("Ban");
+      expect(screen.queryByTestId("banned-badge-alice")).not.toBeInTheDocument();
+
+      await user.click(banButton);
+      await user.type(screen.getByTestId("ban-reason-input"), "Policy violation");
+      await user.click(screen.getByRole("button", { name: "Confirm Ban" }));
+
+      await waitFor(() =>
+        expect(onBanToggle).toHaveBeenCalledWith(
+          "alice",
+          "ban",
+          "Policy violation"
+        )
+      );
+    });
+
+    it("requires confirmation to unban and leaves the contributor banned when cancelled", async () => {
+      const user = userEvent.setup();
+      const onBanToggle = vi.fn().mockResolvedValue(undefined);
+      render(
+        <ContributorTable
+          contributors={[bannedContributor]}
+          onBanToggle={onBanToggle}
+        />
+      );
+
+      const unbanButton = screen.getByRole("button", { name: "Unban alice" });
+      await user.click(unbanButton);
+
+      const dialog = screen.getByRole("alertdialog");
+      expect(dialog).toHaveTextContent(/removes this GitHub account from the ban list/i);
+      expect(dialog).toHaveTextContent(/allows future registration and re-check attempts/i);
+      expect(onBanToggle).not.toHaveBeenCalled();
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(onBanToggle).not.toHaveBeenCalled();
+      expect(screen.getByTestId("banned-badge-alice")).toBeInTheDocument();
+      expect(unbanButton).toHaveTextContent("Unban");
+
+      await user.click(unbanButton);
+      await user.click(screen.getByRole("button", { name: "Confirm Unban" }));
+
+      await waitFor(() =>
+        expect(onBanToggle).toHaveBeenCalledWith("alice", "unban", undefined)
+      );
+    });
   });
 });

@@ -6,7 +6,21 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "recheck.batch": "Re-checked all contributors",
   "registration.create": "Registered a Stellar address",
   "registration.update": "Updated a Stellar address",
+  "registration.delete": "Soft-deleted a registration",
+  "registration.restore": "Restored a registration",
   network_config_mismatch_detected: "Detected a Horizon/Soroban network mismatch",
+  "contract.sync": "Synced Soroban contract registrations",
+  "export.csv": "Exported contributors CSV",
+  "export.csv.failed": "Failed to export contributors CSV",
+  "export.cron": "Automated nightly treasury CSV export",
+  "export.cron.failed": "Automated nightly treasury CSV export failed",
+  "export.json": "Exported contributors JSON",
+  "export.json.failed": "Failed to export contributors JSON",
+  "api_key.created": "Created an API key",
+  "api_key.revoked": "Revoked an API key",
+  "api_key.use_rejected": "API key use rejected",
+  "digest.cron": "Scheduled contributor readiness digest sent",
+  "digest.cron.failed": "Scheduled contributor readiness digest failed",
 };
 
 export function describeAuditAction(action: string): string {

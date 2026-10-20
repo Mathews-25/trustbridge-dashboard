@@ -12,6 +12,9 @@ describe("describeAuditAction", () => {
     expect(describeAuditAction("recheck.single")).toBe(
       "Re-checked a contributor"
     );
+    expect(describeAuditAction("export.cron")).toBe(
+      "Automated nightly treasury CSV export"
+    );
   });
 
   it("falls back to the raw action for unknown ones", () => {

@@ -1,19 +1,18 @@
 export type CircuitBreakerState = "CLOSED" | "OPEN" | "HALF_OPEN";
 
 export interface CircuitBreakerOptions {
-  /**
-   * Number of consecutive failures before opening the circuit.
-   */
   failureThreshold: number;
-  /**
-   * Number of consecutive successes in HALF_OPEN state before closing.
-   */
   successThreshold: number;
-  /**
-   * Milliseconds to wait before attempting recovery (HALF_OPEN).
-   */
   recoveryTimeoutMs: number;
 }
+
+export interface CircuitBreakerTripEvent {
+  trippedAt: number;
+  failureCountAtTrip: number;
+  recoveredAt: number | null;
+}
+
+const MAX_TRIP_HISTORY = 20;
 
 function getDefaultOptions(): CircuitBreakerOptions {
   const failureThreshold = Number.parseInt(
@@ -45,16 +44,14 @@ function getDefaultOptions(): CircuitBreakerOptions {
   };
 }
 
-/**
- * Generic circuit breaker that prevents repeated calls to a failing
- * dependency. Tracks state (CLOSED → OPEN → HALF_OPEN → CLOSED) and
- * fast-fails when OPEN.
- */
 export class CircuitBreaker {
   private state: CircuitBreakerState = "CLOSED";
   private failureCount = 0;
   private successCount = 0;
   private lastFailureTime: number | null = null;
+  private totalTrips = 0;
+  private tripHistory: CircuitBreakerTripEvent[] = [];
+  private currentTrip: CircuitBreakerTripEvent | null = null;
 
   constructor(private options: CircuitBreakerOptions = getDefaultOptions()) {}
 
@@ -62,17 +59,29 @@ export class CircuitBreaker {
     return this.state;
   }
 
+  getOptions(): CircuitBreakerOptions {
+    return { ...this.options };
+  }
+
   getMetrics(): {
     state: CircuitBreakerState;
     failureCount: number;
     successCount: number;
     lastFailureTime: number | null;
+    totalTrips: number;
+    recentTrips: CircuitBreakerTripEvent[];
+    options: CircuitBreakerOptions;
+    processLocal: boolean;
   } {
     return {
       state: this.state,
       failureCount: this.failureCount,
       successCount: this.successCount,
       lastFailureTime: this.lastFailureTime,
+      totalTrips: this.totalTrips,
+      recentTrips: [...this.tripHistory],
+      options: { ...this.options },
+      processLocal: true,
     };
   }
 
@@ -103,6 +112,10 @@ export class CircuitBreaker {
     if (this.state === "HALF_OPEN") {
       this.successCount++;
       if (this.successCount >= this.options.successThreshold) {
+        if (this.currentTrip) {
+          this.currentTrip.recoveredAt = Date.now();
+          this.currentTrip = null;
+        }
         this.state = "CLOSED";
         this.failureCount = 0;
         this.successCount = 0;
@@ -115,11 +128,26 @@ export class CircuitBreaker {
   private onFailure() {
     this.failureCount++;
     this.lastFailureTime = Date.now();
-    if (this.state === "HALF_OPEN") {
+    const wasClosed = this.state === "CLOSED";
+    const wasHalfOpen = this.state === "HALF_OPEN";
+
+    if (wasHalfOpen) {
       this.state = "OPEN";
       this.successCount = 0;
-    } else if (this.failureCount >= this.options.failureThreshold) {
+    } else if (wasClosed && this.failureCount >= this.options.failureThreshold) {
       this.state = "OPEN";
+      this.totalTrips++;
+      this.currentTrip = {
+        trippedAt: Date.now(),
+        failureCountAtTrip: this.failureCount,
+        recoveredAt: null,
+      };
+      this.tripHistory.push(this.currentTrip);
+      if (this.tripHistory.length > MAX_TRIP_HISTORY) {
+        this.tripHistory.shift();
+      }
+    } else if (!wasHalfOpen && this.state === "OPEN" && this.currentTrip) {
+      this.currentTrip.failureCountAtTrip = this.failureCount;
     }
   }
 }

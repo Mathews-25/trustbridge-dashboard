@@ -1,0 +1,961 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`locale-aware formatting > locale snapshots > email template renders for de-DE > email--de-DE 1`] = `
+"Subject: Wave 3 Payout Readiness Check
+
+Dear Alice,
+
+Thank you for being part of the TrustBridge Wave 3!
+
+To ensure you receive your payout successfully, please complete the following checklist by 1. August 2026:
+
+**Step 1: Fund Your Stellar Account**
+- Ensure your Stellar G-address has at least 1,5 XLM for transaction fees and reserves
+- You can purchase XLM from any Stellar-supported exchange
+
+**Step 2: Set Up USDC Trustline**
+- Log into your Stellar wallet (Lobstr, Stellar.Expert, or similar)
+- Add a trustline for USDC from issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+- Mark the trustline as authorized if your wallet prompts you
+
+**Step 3: Verify via TrustBridge Dashboard**
+- Visit: https://trustbridge.dev/dashboard
+- Sign in with your GitHub account
+- Check that your status shows "Ready" (✅)
+
+**Wallet Proof (if requested)**
+- Screenshot your Stellar account showing:
+  - Your public address (G-address)
+  - XLM balance ≥ 1,5
+  - Active USDC trustline with authorization status
+
+**Need Help?**
+If you encounter any issues, please:
+1. Check the TrustBridge docs: https://docs.trustbridge.dev
+2. Review common issues: https://docs.trustbridge.dev/troubleshooting
+3. Contact support: help@example.com
+
+We look forward to Wave 3!
+
+Best regards,
+The TrustBridge Team"
+`;
+
+exports[`locale-aware formatting > locale snapshots > email template renders for en-GB > email--en-GB 1`] = `
+"Subject: Wave 3 Payout Readiness Check
+
+Dear Alice,
+
+Thank you for being part of the TrustBridge Wave 3!
+
+To ensure you receive your payout successfully, please complete the following checklist by 1 August 2026:
+
+**Step 1: Fund Your Stellar Account**
+- Ensure your Stellar G-address has at least 1.5 XLM for transaction fees and reserves
+- You can purchase XLM from any Stellar-supported exchange
+
+**Step 2: Set Up USDC Trustline**
+- Log into your Stellar wallet (Lobstr, Stellar.Expert, or similar)
+- Add a trustline for USDC from issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+- Mark the trustline as authorized if your wallet prompts you
+
+**Step 3: Verify via TrustBridge Dashboard**
+- Visit: https://trustbridge.dev/dashboard
+- Sign in with your GitHub account
+- Check that your status shows "Ready" (✅)
+
+**Wallet Proof (if requested)**
+- Screenshot your Stellar account showing:
+  - Your public address (G-address)
+  - XLM balance ≥ 1.5
+  - Active USDC trustline with authorization status
+
+**Need Help?**
+If you encounter any issues, please:
+1. Check the TrustBridge docs: https://docs.trustbridge.dev
+2. Review common issues: https://docs.trustbridge.dev/troubleshooting
+3. Contact support: help@example.com
+
+We look forward to Wave 3!
+
+Best regards,
+The TrustBridge Team"
+`;
+
+exports[`locale-aware formatting > locale snapshots > email template renders for en-US > email--en-US 1`] = `
+"Subject: Wave 3 Payout Readiness Check
+
+Dear Alice,
+
+Thank you for being part of the TrustBridge Wave 3!
+
+To ensure you receive your payout successfully, please complete the following checklist by August 1, 2026:
+
+**Step 1: Fund Your Stellar Account**
+- Ensure your Stellar G-address has at least 1.5 XLM for transaction fees and reserves
+- You can purchase XLM from any Stellar-supported exchange
+
+**Step 2: Set Up USDC Trustline**
+- Log into your Stellar wallet (Lobstr, Stellar.Expert, or similar)
+- Add a trustline for USDC from issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+- Mark the trustline as authorized if your wallet prompts you
+
+**Step 3: Verify via TrustBridge Dashboard**
+- Visit: https://trustbridge.dev/dashboard
+- Sign in with your GitHub account
+- Check that your status shows "Ready" (✅)
+
+**Wallet Proof (if requested)**
+- Screenshot your Stellar account showing:
+  - Your public address (G-address)
+  - XLM balance ≥ 1.5
+  - Active USDC trustline with authorization status
+
+**Need Help?**
+If you encounter any issues, please:
+1. Check the TrustBridge docs: https://docs.trustbridge.dev
+2. Review common issues: https://docs.trustbridge.dev/troubleshooting
+3. Contact support: help@example.com
+
+We look forward to Wave 3!
+
+Best regards,
+The TrustBridge Team"
+`;
+
+exports[`locale-aware formatting > locale snapshots > email template renders for es-ES > email--es-ES 1`] = `
+"Subject: Wave 3 Payout Readiness Check
+
+Dear Alice,
+
+Thank you for being part of the TrustBridge Wave 3!
+
+To ensure you receive your payout successfully, please complete the following checklist by 1 de agosto de 2026:
+
+**Step 1: Fund Your Stellar Account**
+- Ensure your Stellar G-address has at least 1,5 XLM for transaction fees and reserves
+- You can purchase XLM from any Stellar-supported exchange
+
+**Step 2: Set Up USDC Trustline**
+- Log into your Stellar wallet (Lobstr, Stellar.Expert, or similar)
+- Add a trustline for USDC from issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+- Mark the trustline as authorized if your wallet prompts you
+
+**Step 3: Verify via TrustBridge Dashboard**
+- Visit: https://trustbridge.dev/dashboard
+- Sign in with your GitHub account
+- Check that your status shows "Ready" (✅)
+
+**Wallet Proof (if requested)**
+- Screenshot your Stellar account showing:
+  - Your public address (G-address)
+  - XLM balance ≥ 1,5
+  - Active USDC trustline with authorization status
+
+**Need Help?**
+If you encounter any issues, please:
+1. Check the TrustBridge docs: https://docs.trustbridge.dev
+2. Review common issues: https://docs.trustbridge.dev/troubleshooting
+3. Contact support: help@example.com
+
+We look forward to Wave 3!
+
+Best regards,
+The TrustBridge Team"
+`;
+
+exports[`locale-aware formatting > locale snapshots > email template renders for es-MX > email--es-MX 1`] = `
+"Subject: Wave 3 Payout Readiness Check
+
+Dear Alice,
+
+Thank you for being part of the TrustBridge Wave 3!
+
+To ensure you receive your payout successfully, please complete the following checklist by 1 de agosto de 2026:
+
+**Step 1: Fund Your Stellar Account**
+- Ensure your Stellar G-address has at least 1.5 XLM for transaction fees and reserves
+- You can purchase XLM from any Stellar-supported exchange
+
+**Step 2: Set Up USDC Trustline**
+- Log into your Stellar wallet (Lobstr, Stellar.Expert, or similar)
+- Add a trustline for USDC from issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+- Mark the trustline as authorized if your wallet prompts you
+
+**Step 3: Verify via TrustBridge Dashboard**
+- Visit: https://trustbridge.dev/dashboard
+- Sign in with your GitHub account
+- Check that your status shows "Ready" (✅)
+
+**Wallet Proof (if requested)**
+- Screenshot your Stellar account showing:
+  - Your public address (G-address)
+  - XLM balance ≥ 1.5
+  - Active USDC trustline with authorization status
+
+**Need Help?**
+If you encounter any issues, please:
+1. Check the TrustBridge docs: https://docs.trustbridge.dev
+2. Review common issues: https://docs.trustbridge.dev/troubleshooting
+3. Contact support: help@example.com
+
+We look forward to Wave 3!
+
+Best regards,
+The TrustBridge Team"
+`;
+
+exports[`locale-aware formatting > locale snapshots > email template renders for fr-FR > email--fr-FR 1`] = `
+"Subject: Wave 3 Payout Readiness Check
+
+Dear Alice,
+
+Thank you for being part of the TrustBridge Wave 3!
+
+To ensure you receive your payout successfully, please complete the following checklist by 1 août 2026:
+
+**Step 1: Fund Your Stellar Account**
+- Ensure your Stellar G-address has at least 1,5 XLM for transaction fees and reserves
+- You can purchase XLM from any Stellar-supported exchange
+
+**Step 2: Set Up USDC Trustline**
+- Log into your Stellar wallet (Lobstr, Stellar.Expert, or similar)
+- Add a trustline for USDC from issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+- Mark the trustline as authorized if your wallet prompts you
+
+**Step 3: Verify via TrustBridge Dashboard**
+- Visit: https://trustbridge.dev/dashboard
+- Sign in with your GitHub account
+- Check that your status shows "Ready" (✅)
+
+**Wallet Proof (if requested)**
+- Screenshot your Stellar account showing:
+  - Your public address (G-address)
+  - XLM balance ≥ 1,5
+  - Active USDC trustline with authorization status
+
+**Need Help?**
+If you encounter any issues, please:
+1. Check the TrustBridge docs: https://docs.trustbridge.dev
+2. Review common issues: https://docs.trustbridge.dev/troubleshooting
+3. Contact support: help@example.com
+
+We look forward to Wave 3!
+
+Best regards,
+The TrustBridge Team"
+`;
+
+exports[`locale-aware formatting > locale snapshots > email template renders for ja-JP > email--ja-JP 1`] = `
+"Subject: Wave 3 Payout Readiness Check
+
+Dear Alice,
+
+Thank you for being part of the TrustBridge Wave 3!
+
+To ensure you receive your payout successfully, please complete the following checklist by 2026年8月1日:
+
+**Step 1: Fund Your Stellar Account**
+- Ensure your Stellar G-address has at least 1.5 XLM for transaction fees and reserves
+- You can purchase XLM from any Stellar-supported exchange
+
+**Step 2: Set Up USDC Trustline**
+- Log into your Stellar wallet (Lobstr, Stellar.Expert, or similar)
+- Add a trustline for USDC from issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+- Mark the trustline as authorized if your wallet prompts you
+
+**Step 3: Verify via TrustBridge Dashboard**
+- Visit: https://trustbridge.dev/dashboard
+- Sign in with your GitHub account
+- Check that your status shows "Ready" (✅)
+
+**Wallet Proof (if requested)**
+- Screenshot your Stellar account showing:
+  - Your public address (G-address)
+  - XLM balance ≥ 1.5
+  - Active USDC trustline with authorization status
+
+**Need Help?**
+If you encounter any issues, please:
+1. Check the TrustBridge docs: https://docs.trustbridge.dev
+2. Review common issues: https://docs.trustbridge.dev/troubleshooting
+3. Contact support: help@example.com
+
+We look forward to Wave 3!
+
+Best regards,
+The TrustBridge Team"
+`;
+
+exports[`locale-aware formatting > locale snapshots > email template renders for pt-BR > email--pt-BR 1`] = `
+"Subject: Wave 3 Payout Readiness Check
+
+Dear Alice,
+
+Thank you for being part of the TrustBridge Wave 3!
+
+To ensure you receive your payout successfully, please complete the following checklist by 1 de agosto de 2026:
+
+**Step 1: Fund Your Stellar Account**
+- Ensure your Stellar G-address has at least 1,5 XLM for transaction fees and reserves
+- You can purchase XLM from any Stellar-supported exchange
+
+**Step 2: Set Up USDC Trustline**
+- Log into your Stellar wallet (Lobstr, Stellar.Expert, or similar)
+- Add a trustline for USDC from issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+- Mark the trustline as authorized if your wallet prompts you
+
+**Step 3: Verify via TrustBridge Dashboard**
+- Visit: https://trustbridge.dev/dashboard
+- Sign in with your GitHub account
+- Check that your status shows "Ready" (✅)
+
+**Wallet Proof (if requested)**
+- Screenshot your Stellar account showing:
+  - Your public address (G-address)
+  - XLM balance ≥ 1,5
+  - Active USDC trustline with authorization status
+
+**Need Help?**
+If you encounter any issues, please:
+1. Check the TrustBridge docs: https://docs.trustbridge.dev
+2. Review common issues: https://docs.trustbridge.dev/troubleshooting
+3. Contact support: help@example.com
+
+We look forward to Wave 3!
+
+Best regards,
+The TrustBridge Team"
+`;
+
+exports[`locale-aware formatting > locale snapshots > markdown template renders for de-DE > markdown--de-DE 1`] = `
+"# Wave 3 Payout Readiness
+
+Hi Alice! 👋
+
+Thank you for being part of Wave 3. To receive your payout, complete this checklist by **1. August 2026**:
+
+## ✅ Checklist
+
+### 1. Fund Your Stellar Account
+- [ ] Stellar account has ≥ 1,5 XLM
+- [ ] XLM covers transaction fees and reserves
+
+### 2. Set Up USDC Trustline
+- [ ] Added trustline for USDC
+- [ ] Issuer: \`GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN\`
+- [ ] Trustline is authorized
+
+### 3. Verify on TrustBridge
+- [ ] Open https://trustbridge.dev/dashboard
+- [ ] Dashboard shows status: **Ready** ✅
+- [ ] Last checked: Today or recent
+
+## 📸 Wallet Proof
+
+If requested, provide a screenshot showing:
+- Your Stellar public address
+- XLM balance ≥ 1,5
+- USDC trustline (authorized)
+
+## 🆘 Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Low XLM balance | Purchase XLM from an exchange |
+| Can't add trustline | Check wallet supports USDC |
+| Trustline unauthorized | Contact issuer to authorize |
+
+**Questions?** → help@example.com"
+`;
+
+exports[`locale-aware formatting > locale snapshots > markdown template renders for en-GB > markdown--en-GB 1`] = `
+"# Wave 3 Payout Readiness
+
+Hi Alice! 👋
+
+Thank you for being part of Wave 3. To receive your payout, complete this checklist by **1 August 2026**:
+
+## ✅ Checklist
+
+### 1. Fund Your Stellar Account
+- [ ] Stellar account has ≥ 1.5 XLM
+- [ ] XLM covers transaction fees and reserves
+
+### 2. Set Up USDC Trustline
+- [ ] Added trustline for USDC
+- [ ] Issuer: \`GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN\`
+- [ ] Trustline is authorized
+
+### 3. Verify on TrustBridge
+- [ ] Open https://trustbridge.dev/dashboard
+- [ ] Dashboard shows status: **Ready** ✅
+- [ ] Last checked: Today or recent
+
+## 📸 Wallet Proof
+
+If requested, provide a screenshot showing:
+- Your Stellar public address
+- XLM balance ≥ 1.5
+- USDC trustline (authorized)
+
+## 🆘 Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Low XLM balance | Purchase XLM from an exchange |
+| Can't add trustline | Check wallet supports USDC |
+| Trustline unauthorized | Contact issuer to authorize |
+
+**Questions?** → help@example.com"
+`;
+
+exports[`locale-aware formatting > locale snapshots > markdown template renders for en-US > markdown--en-US 1`] = `
+"# Wave 3 Payout Readiness
+
+Hi Alice! 👋
+
+Thank you for being part of Wave 3. To receive your payout, complete this checklist by **August 1, 2026**:
+
+## ✅ Checklist
+
+### 1. Fund Your Stellar Account
+- [ ] Stellar account has ≥ 1.5 XLM
+- [ ] XLM covers transaction fees and reserves
+
+### 2. Set Up USDC Trustline
+- [ ] Added trustline for USDC
+- [ ] Issuer: \`GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN\`
+- [ ] Trustline is authorized
+
+### 3. Verify on TrustBridge
+- [ ] Open https://trustbridge.dev/dashboard
+- [ ] Dashboard shows status: **Ready** ✅
+- [ ] Last checked: Today or recent
+
+## 📸 Wallet Proof
+
+If requested, provide a screenshot showing:
+- Your Stellar public address
+- XLM balance ≥ 1.5
+- USDC trustline (authorized)
+
+## 🆘 Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Low XLM balance | Purchase XLM from an exchange |
+| Can't add trustline | Check wallet supports USDC |
+| Trustline unauthorized | Contact issuer to authorize |
+
+**Questions?** → help@example.com"
+`;
+
+exports[`locale-aware formatting > locale snapshots > markdown template renders for es-ES > markdown--es-ES 1`] = `
+"# Wave 3 Payout Readiness
+
+Hi Alice! 👋
+
+Thank you for being part of Wave 3. To receive your payout, complete this checklist by **1 de agosto de 2026**:
+
+## ✅ Checklist
+
+### 1. Fund Your Stellar Account
+- [ ] Stellar account has ≥ 1,5 XLM
+- [ ] XLM covers transaction fees and reserves
+
+### 2. Set Up USDC Trustline
+- [ ] Added trustline for USDC
+- [ ] Issuer: \`GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN\`
+- [ ] Trustline is authorized
+
+### 3. Verify on TrustBridge
+- [ ] Open https://trustbridge.dev/dashboard
+- [ ] Dashboard shows status: **Ready** ✅
+- [ ] Last checked: Today or recent
+
+## 📸 Wallet Proof
+
+If requested, provide a screenshot showing:
+- Your Stellar public address
+- XLM balance ≥ 1,5
+- USDC trustline (authorized)
+
+## 🆘 Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Low XLM balance | Purchase XLM from an exchange |
+| Can't add trustline | Check wallet supports USDC |
+| Trustline unauthorized | Contact issuer to authorize |
+
+**Questions?** → help@example.com"
+`;
+
+exports[`locale-aware formatting > locale snapshots > markdown template renders for es-MX > markdown--es-MX 1`] = `
+"# Wave 3 Payout Readiness
+
+Hi Alice! 👋
+
+Thank you for being part of Wave 3. To receive your payout, complete this checklist by **1 de agosto de 2026**:
+
+## ✅ Checklist
+
+### 1. Fund Your Stellar Account
+- [ ] Stellar account has ≥ 1.5 XLM
+- [ ] XLM covers transaction fees and reserves
+
+### 2. Set Up USDC Trustline
+- [ ] Added trustline for USDC
+- [ ] Issuer: \`GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN\`
+- [ ] Trustline is authorized
+
+### 3. Verify on TrustBridge
+- [ ] Open https://trustbridge.dev/dashboard
+- [ ] Dashboard shows status: **Ready** ✅
+- [ ] Last checked: Today or recent
+
+## 📸 Wallet Proof
+
+If requested, provide a screenshot showing:
+- Your Stellar public address
+- XLM balance ≥ 1.5
+- USDC trustline (authorized)
+
+## 🆘 Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Low XLM balance | Purchase XLM from an exchange |
+| Can't add trustline | Check wallet supports USDC |
+| Trustline unauthorized | Contact issuer to authorize |
+
+**Questions?** → help@example.com"
+`;
+
+exports[`locale-aware formatting > locale snapshots > markdown template renders for fr-FR > markdown--fr-FR 1`] = `
+"# Wave 3 Payout Readiness
+
+Hi Alice! 👋
+
+Thank you for being part of Wave 3. To receive your payout, complete this checklist by **1 août 2026**:
+
+## ✅ Checklist
+
+### 1. Fund Your Stellar Account
+- [ ] Stellar account has ≥ 1,5 XLM
+- [ ] XLM covers transaction fees and reserves
+
+### 2. Set Up USDC Trustline
+- [ ] Added trustline for USDC
+- [ ] Issuer: \`GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN\`
+- [ ] Trustline is authorized
+
+### 3. Verify on TrustBridge
+- [ ] Open https://trustbridge.dev/dashboard
+- [ ] Dashboard shows status: **Ready** ✅
+- [ ] Last checked: Today or recent
+
+## 📸 Wallet Proof
+
+If requested, provide a screenshot showing:
+- Your Stellar public address
+- XLM balance ≥ 1,5
+- USDC trustline (authorized)
+
+## 🆘 Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Low XLM balance | Purchase XLM from an exchange |
+| Can't add trustline | Check wallet supports USDC |
+| Trustline unauthorized | Contact issuer to authorize |
+
+**Questions?** → help@example.com"
+`;
+
+exports[`locale-aware formatting > locale snapshots > markdown template renders for ja-JP > markdown--ja-JP 1`] = `
+"# Wave 3 Payout Readiness
+
+Hi Alice! 👋
+
+Thank you for being part of Wave 3. To receive your payout, complete this checklist by **2026年8月1日**:
+
+## ✅ Checklist
+
+### 1. Fund Your Stellar Account
+- [ ] Stellar account has ≥ 1.5 XLM
+- [ ] XLM covers transaction fees and reserves
+
+### 2. Set Up USDC Trustline
+- [ ] Added trustline for USDC
+- [ ] Issuer: \`GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN\`
+- [ ] Trustline is authorized
+
+### 3. Verify on TrustBridge
+- [ ] Open https://trustbridge.dev/dashboard
+- [ ] Dashboard shows status: **Ready** ✅
+- [ ] Last checked: Today or recent
+
+## 📸 Wallet Proof
+
+If requested, provide a screenshot showing:
+- Your Stellar public address
+- XLM balance ≥ 1.5
+- USDC trustline (authorized)
+
+## 🆘 Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Low XLM balance | Purchase XLM from an exchange |
+| Can't add trustline | Check wallet supports USDC |
+| Trustline unauthorized | Contact issuer to authorize |
+
+**Questions?** → help@example.com"
+`;
+
+exports[`locale-aware formatting > locale snapshots > markdown template renders for pt-BR > markdown--pt-BR 1`] = `
+"# Wave 3 Payout Readiness
+
+Hi Alice! 👋
+
+Thank you for being part of Wave 3. To receive your payout, complete this checklist by **1 de agosto de 2026**:
+
+## ✅ Checklist
+
+### 1. Fund Your Stellar Account
+- [ ] Stellar account has ≥ 1,5 XLM
+- [ ] XLM covers transaction fees and reserves
+
+### 2. Set Up USDC Trustline
+- [ ] Added trustline for USDC
+- [ ] Issuer: \`GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN\`
+- [ ] Trustline is authorized
+
+### 3. Verify on TrustBridge
+- [ ] Open https://trustbridge.dev/dashboard
+- [ ] Dashboard shows status: **Ready** ✅
+- [ ] Last checked: Today or recent
+
+## 📸 Wallet Proof
+
+If requested, provide a screenshot showing:
+- Your Stellar public address
+- XLM balance ≥ 1,5
+- USDC trustline (authorized)
+
+## 🆘 Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Low XLM balance | Purchase XLM from an exchange |
+| Can't add trustline | Check wallet supports USDC |
+| Trustline unauthorized | Contact issuer to authorize |
+
+**Questions?** → help@example.com"
+`;
+
+exports[`locale-aware formatting > locale snapshots > plain template renders for de-DE > plain--de-DE 1`] = `
+"WAVE 3 PAYOUT READINESS CHECKLIST
+==================================================
+
+Hello Alice,
+
+To receive your Wave 3 payout by 1. August 2026, complete:
+
+STEP 1: Fund Your Stellar Account
+- Ensure at least 1,5 XLM in your account
+- This covers transaction fees and minimum reserve
+
+STEP 2: Add USDC Trustline
+- Open your Stellar wallet
+- Add trustline for USDC
+- Issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+- Set trustline authorization to: Authorized
+
+STEP 3: Verify via TrustBridge Dashboard
+- Visit: https://trustbridge.dev/dashboard
+- Sign in with GitHub
+- Confirm status shows: Ready (✅)
+
+WALLET PROOF (if required)
+- Screenshot your Stellar account showing:
+  - Your public address (starts with G)
+  - XLM balance of at least 1,5
+  - Active USDC trustline
+
+NEED HELP?
+- Documentation: https://docs.trustbridge.dev
+- Common issues: https://docs.trustbridge.dev/troubleshooting
+- Email support: help@example.com
+
+Ready for Wave 3!
+The TrustBridge Team"
+`;
+
+exports[`locale-aware formatting > locale snapshots > plain template renders for en-GB > plain--en-GB 1`] = `
+"WAVE 3 PAYOUT READINESS CHECKLIST
+==================================================
+
+Hello Alice,
+
+To receive your Wave 3 payout by 1 August 2026, complete:
+
+STEP 1: Fund Your Stellar Account
+- Ensure at least 1.5 XLM in your account
+- This covers transaction fees and minimum reserve
+
+STEP 2: Add USDC Trustline
+- Open your Stellar wallet
+- Add trustline for USDC
+- Issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+- Set trustline authorization to: Authorized
+
+STEP 3: Verify via TrustBridge Dashboard
+- Visit: https://trustbridge.dev/dashboard
+- Sign in with GitHub
+- Confirm status shows: Ready (✅)
+
+WALLET PROOF (if required)
+- Screenshot your Stellar account showing:
+  - Your public address (starts with G)
+  - XLM balance of at least 1.5
+  - Active USDC trustline
+
+NEED HELP?
+- Documentation: https://docs.trustbridge.dev
+- Common issues: https://docs.trustbridge.dev/troubleshooting
+- Email support: help@example.com
+
+Ready for Wave 3!
+The TrustBridge Team"
+`;
+
+exports[`locale-aware formatting > locale snapshots > plain template renders for en-US > plain--en-US 1`] = `
+"WAVE 3 PAYOUT READINESS CHECKLIST
+==================================================
+
+Hello Alice,
+
+To receive your Wave 3 payout by August 1, 2026, complete:
+
+STEP 1: Fund Your Stellar Account
+- Ensure at least 1.5 XLM in your account
+- This covers transaction fees and minimum reserve
+
+STEP 2: Add USDC Trustline
+- Open your Stellar wallet
+- Add trustline for USDC
+- Issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+- Set trustline authorization to: Authorized
+
+STEP 3: Verify via TrustBridge Dashboard
+- Visit: https://trustbridge.dev/dashboard
+- Sign in with GitHub
+- Confirm status shows: Ready (✅)
+
+WALLET PROOF (if required)
+- Screenshot your Stellar account showing:
+  - Your public address (starts with G)
+  - XLM balance of at least 1.5
+  - Active USDC trustline
+
+NEED HELP?
+- Documentation: https://docs.trustbridge.dev
+- Common issues: https://docs.trustbridge.dev/troubleshooting
+- Email support: help@example.com
+
+Ready for Wave 3!
+The TrustBridge Team"
+`;
+
+exports[`locale-aware formatting > locale snapshots > plain template renders for es-ES > plain--es-ES 1`] = `
+"WAVE 3 PAYOUT READINESS CHECKLIST
+==================================================
+
+Hello Alice,
+
+To receive your Wave 3 payout by 1 de agosto de 2026, complete:
+
+STEP 1: Fund Your Stellar Account
+- Ensure at least 1,5 XLM in your account
+- This covers transaction fees and minimum reserve
+
+STEP 2: Add USDC Trustline
+- Open your Stellar wallet
+- Add trustline for USDC
+- Issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+- Set trustline authorization to: Authorized
+
+STEP 3: Verify via TrustBridge Dashboard
+- Visit: https://trustbridge.dev/dashboard
+- Sign in with GitHub
+- Confirm status shows: Ready (✅)
+
+WALLET PROOF (if required)
+- Screenshot your Stellar account showing:
+  - Your public address (starts with G)
+  - XLM balance of at least 1,5
+  - Active USDC trustline
+
+NEED HELP?
+- Documentation: https://docs.trustbridge.dev
+- Common issues: https://docs.trustbridge.dev/troubleshooting
+- Email support: help@example.com
+
+Ready for Wave 3!
+The TrustBridge Team"
+`;
+
+exports[`locale-aware formatting > locale snapshots > plain template renders for es-MX > plain--es-MX 1`] = `
+"WAVE 3 PAYOUT READINESS CHECKLIST
+==================================================
+
+Hello Alice,
+
+To receive your Wave 3 payout by 1 de agosto de 2026, complete:
+
+STEP 1: Fund Your Stellar Account
+- Ensure at least 1.5 XLM in your account
+- This covers transaction fees and minimum reserve
+
+STEP 2: Add USDC Trustline
+- Open your Stellar wallet
+- Add trustline for USDC
+- Issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+- Set trustline authorization to: Authorized
+
+STEP 3: Verify via TrustBridge Dashboard
+- Visit: https://trustbridge.dev/dashboard
+- Sign in with GitHub
+- Confirm status shows: Ready (✅)
+
+WALLET PROOF (if required)
+- Screenshot your Stellar account showing:
+  - Your public address (starts with G)
+  - XLM balance of at least 1.5
+  - Active USDC trustline
+
+NEED HELP?
+- Documentation: https://docs.trustbridge.dev
+- Common issues: https://docs.trustbridge.dev/troubleshooting
+- Email support: help@example.com
+
+Ready for Wave 3!
+The TrustBridge Team"
+`;
+
+exports[`locale-aware formatting > locale snapshots > plain template renders for fr-FR > plain--fr-FR 1`] = `
+"WAVE 3 PAYOUT READINESS CHECKLIST
+==================================================
+
+Hello Alice,
+
+To receive your Wave 3 payout by 1 août 2026, complete:
+
+STEP 1: Fund Your Stellar Account
+- Ensure at least 1,5 XLM in your account
+- This covers transaction fees and minimum reserve
+
+STEP 2: Add USDC Trustline
+- Open your Stellar wallet
+- Add trustline for USDC
+- Issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+- Set trustline authorization to: Authorized
+
+STEP 3: Verify via TrustBridge Dashboard
+- Visit: https://trustbridge.dev/dashboard
+- Sign in with GitHub
+- Confirm status shows: Ready (✅)
+
+WALLET PROOF (if required)
+- Screenshot your Stellar account showing:
+  - Your public address (starts with G)
+  - XLM balance of at least 1,5
+  - Active USDC trustline
+
+NEED HELP?
+- Documentation: https://docs.trustbridge.dev
+- Common issues: https://docs.trustbridge.dev/troubleshooting
+- Email support: help@example.com
+
+Ready for Wave 3!
+The TrustBridge Team"
+`;
+
+exports[`locale-aware formatting > locale snapshots > plain template renders for ja-JP > plain--ja-JP 1`] = `
+"WAVE 3 PAYOUT READINESS CHECKLIST
+==================================================
+
+Hello Alice,
+
+To receive your Wave 3 payout by 2026年8月1日, complete:
+
+STEP 1: Fund Your Stellar Account
+- Ensure at least 1.5 XLM in your account
+- This covers transaction fees and minimum reserve
+
+STEP 2: Add USDC Trustline
+- Open your Stellar wallet
+- Add trustline for USDC
+- Issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+- Set trustline authorization to: Authorized
+
+STEP 3: Verify via TrustBridge Dashboard
+- Visit: https://trustbridge.dev/dashboard
+- Sign in with GitHub
+- Confirm status shows: Ready (✅)
+
+WALLET PROOF (if required)
+- Screenshot your Stellar account showing:
+  - Your public address (starts with G)
+  - XLM balance of at least 1.5
+  - Active USDC trustline
+
+NEED HELP?
+- Documentation: https://docs.trustbridge.dev
+- Common issues: https://docs.trustbridge.dev/troubleshooting
+- Email support: help@example.com
+
+Ready for Wave 3!
+The TrustBridge Team"
+`;
+
+exports[`locale-aware formatting > locale snapshots > plain template renders for pt-BR > plain--pt-BR 1`] = `
+"WAVE 3 PAYOUT READINESS CHECKLIST
+==================================================
+
+Hello Alice,
+
+To receive your Wave 3 payout by 1 de agosto de 2026, complete:
+
+STEP 1: Fund Your Stellar Account
+- Ensure at least 1,5 XLM in your account
+- This covers transaction fees and minimum reserve
+
+STEP 2: Add USDC Trustline
+- Open your Stellar wallet
+- Add trustline for USDC
+- Issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+- Set trustline authorization to: Authorized
+
+STEP 3: Verify via TrustBridge Dashboard
+- Visit: https://trustbridge.dev/dashboard
+- Sign in with GitHub
+- Confirm status shows: Ready (✅)
+
+WALLET PROOF (if required)
+- Screenshot your Stellar account showing:
+  - Your public address (starts with G)
+  - XLM balance of at least 1,5
+  - Active USDC trustline
+
+NEED HELP?
+- Documentation: https://docs.trustbridge.dev
+- Common issues: https://docs.trustbridge.dev/troubleshooting
+- Email support: help@example.com
+
+Ready for Wave 3!
+The TrustBridge Team"
+`;

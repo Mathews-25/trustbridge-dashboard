@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { GET } from "@/app/api/settings/network/route";
+import * as networkRoute from "@/app/api/settings/network/route";
 
 vi.mock("next-auth", () => ({
   getServerSession: vi.fn(),
@@ -20,6 +21,13 @@ afterEach(() => {
 });
 
 describe("GET /api/settings/network", () => {
+  it("does not expose settings write handlers", () => {
+    expect(networkRoute).not.toHaveProperty("POST");
+    expect(networkRoute).not.toHaveProperty("PUT");
+    expect(networkRoute).not.toHaveProperty("PATCH");
+    expect(networkRoute).not.toHaveProperty("DELETE");
+  });
+
   it("returns 403 for an unauthenticated request", async () => {
     vi.mocked(getServerSession).mockResolvedValue(null);
 
@@ -51,6 +59,8 @@ describe("GET /api/settings/network", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.mismatched).toBe(false);
+    expect(json.horizonNetwork).toBe("testnet");
+    expect(json.sorobanNetwork).toBe("testnet");
     expect(recordAuditLog).not.toHaveBeenCalled();
   });
 
@@ -65,14 +75,20 @@ describe("GET /api/settings/network", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.mismatched).toBe(true);
+    expect(recordAuditLog).toHaveBeenCalledTimes(1);
     expect(recordAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({
+      {
         action: "network_config_mismatch_detected",
-        metadata: expect.objectContaining({
+        actorId: "user-1",
+        actorLogin: "octocat",
+        targetLabel: "network-config",
+        metadata: {
           horizonNetwork: "mainnet",
           sorobanNetwork: "testnet",
-        }),
-      })
+          horizonUrl: "https://horizon.stellar.org",
+          sorobanUrl: "https://soroban-testnet.stellar.org",
+        },
+      }
     );
   });
 });

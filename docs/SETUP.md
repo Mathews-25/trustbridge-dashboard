@@ -10,7 +10,7 @@ Step-by-step instructions to run TrustBridge Dashboard locally.
 
 | Tool | Version | Notes |
 |------|---------|-------|
-| Node.js | 18+ | LTS recommended |
+| Node.js | 18.17+ | LTS recommended |
 | npm | 9+ | Comes with Node |
 | PostgreSQL | 14+ | Local Docker, Neon, or Supabase |
 | Git | any | For cloning |

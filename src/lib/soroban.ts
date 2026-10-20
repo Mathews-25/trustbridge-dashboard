@@ -1,6 +1,6 @@
 import "server-only";
 
-import { rpc, scValToNative } from "stellar-sdk";
+import { rpc, scValToNative, xdr, Contract, TransactionBuilder, Account, Networks, nativeToScVal } from "stellar-sdk";
 
 import type { SorobanEventRow, SorobanEventTimelineResponse } from "@/types";
 
@@ -9,9 +9,20 @@ const DEFAULT_SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org";
 // retention windows while still giving the timeline a meaningful range.
 const DEFAULT_LEDGER_WINDOW = 5_000;
 const DEFAULT_EVENT_LIMIT = 50;
+// Simulate reads against a throwaway source account; simulateTransaction does
+// not require the source to exist or be funded.
+const SIMULATE_SOURCE_ACCOUNT =
+  "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF5";
+const SIMULATE_FEE = "100";
+
+import { resolveSorobanNetworkPassphrase } from "@/lib/network-config";
 
 function getSorobanRpcUrl(): string {
   return process.env.SOROBAN_RPC_URL?.trim() || DEFAULT_SOROBAN_RPC_URL;
+}
+
+function getSorobanNetworkPassphrase(): string {
+  return resolveSorobanNetworkPassphrase();
 }
 
 function safeScValToNative(value: unknown): string {
@@ -76,3 +87,78 @@ export async function getSorobanEventTimeline(): Promise<SorobanEventTimelineRes
     };
   }
 }
+
+/**
+ * Reads a Soroban contract function via RPC `simulateTransaction` instead of
+ * relying on direct ledger-entry reads. Simulation is the supported read path
+ * for Soroban contracts: it executes the invocation against the current ledger
+ * state and returns the decoded return value without submitting a transaction.
+ *
+ * Returns `null` when the contract id is missing, the simulation fails, or the
+ * result cannot be decoded, so callers can fall back gracefully.
+ */
+export async function simulateContractRead<T = unknown>(
+  contractId: string,
+  method: string,
+  args: unknown[] = []
+): Promise<T | null> {
+  const trimmedContractId = contractId?.trim();
+
+  if (!trimmedContractId) {
+    return null;
+  }
+
+  try {
+    const server = new rpc.Server(getSorobanRpcUrl());
+    const account = new Account(SIMULATE_SOURCE_ACCOUNT, "0");
+    const contract = new Contract(trimmedContractId);
+
+    const transaction = new TransactionBuilder(account, {
+      fee: SIMULATE_FEE,
+      networkPassphrase: getSorobanNetworkPassphrase(),
+    })
+      .addOperation(
+        contract.call(method, ...args.map((arg) => nativeToScVal(arg as never)))
+      )
+      .setTimeout(0)
+      .build();
+
+    const simulation = await server.simulateTransaction(transaction);
+
+    if (rpc.Api.isSimulationError(simulation)) {
+      return null;
+    }
+
+    const returnValue = simulation.result?.retval;
+
+    if (returnValue === undefined) {
+      return null;
+    }
+
+    return scValToNative(returnValue) as T;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Convenience wrapper that reads a contract function and normalizes the
+ * decoded value to a string, matching the shape used by the event timeline.
+ */
+export async function simulateContractReadString(
+  contractId: string,
+  method: string,
+  args: unknown[] = []
+): Promise<string | null> {
+  const value = await simulateContractRead(contractId, method, args);
+
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+// Re-exported so contract-sync can build XDR arguments without importing the
+// SDK directly, keeping Soroban access centralized in this module.
+export { xdr };

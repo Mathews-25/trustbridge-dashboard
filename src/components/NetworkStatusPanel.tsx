@@ -1,8 +1,10 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, CheckCircle2, PauseCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -33,11 +35,127 @@ const NETWORK_LABEL: Record<StellarNetwork, string> = {
   custom: "Custom",
 };
 
+const NETWORK_ALIGNMENT_EXAMPLES = [
+  {
+    label: "Testnet",
+    horizonUrl: "https://horizon-testnet.stellar.org",
+    sorobanUrl: "https://soroban-testnet.stellar.org",
+  },
+  {
+    label: "Mainnet",
+    horizonUrl: "https://horizon.stellar.org",
+    sorobanUrl: "https://mainnet.sorobanrpc.com",
+  },
+] as const;
+
+function NetworkPausedEmptyState({
+  horizonNetwork,
+  sorobanNetwork,
+  horizonUrl,
+  sorobanUrl,
+  warnings,
+}: {
+  horizonNetwork: StellarNetwork;
+  sorobanNetwork: StellarNetwork;
+  horizonUrl: string;
+  sorobanUrl: string;
+  warnings: string[];
+}) {
+  return (
+    <div
+      role="alert"
+      data-testid="network-paused-empty"
+      className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-destructive"
+    >
+      <div className="flex items-start gap-3">
+        <PauseCircle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+        <div className="space-y-3">
+          <div>
+            <p className="font-semibold">
+              Network paused — Horizon and Soroban RPC disagree
+            </p>
+            <p className="mt-1 text-sm">
+              Contributor funding checks and Soroban events are reading from
+              different networks. Treat payout readiness and the event timeline
+              as blocked until the environment variables match.
+            </p>
+          </div>
+
+          <ul className="list-disc space-y-1 pl-5 text-sm">
+            {warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+
+          <div className="rounded-md border border-destructive/30 bg-background/80 p-3 text-foreground">
+            <p className="text-sm font-medium">What to do next</p>
+            <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
+              <li>
+                Set <code>NEXT_PUBLIC_HORIZON_URL</code> and{" "}
+                <code>SOROBAN_RPC_URL</code> to the same network in your
+                deployment environment.
+              </li>
+              {NETWORK_ALIGNMENT_EXAMPLES.map((example) => (
+                <li key={example.label}>
+                  {example.label}: Horizon{" "}
+                  <code className="text-xs">{example.horizonUrl}</code>, Soroban{" "}
+                  <code className="text-xs">{example.sorobanUrl}</code>
+                </li>
+              ))}
+              <li>
+                Redeploy or restart the dashboard after updating env vars, then
+                confirm both badges below show the same network.
+              </li>
+            </ol>
+          </div>
+
+          <dl className="grid gap-2 text-xs sm:grid-cols-2">
+            <div>
+              <dt className="text-muted-foreground">Current Horizon</dt>
+              <dd className="font-medium text-foreground">
+                {NETWORK_LABEL[horizonNetwork]} — {horizonUrl}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Current Soroban RPC</dt>
+              <dd className="font-medium text-foreground">
+                {NETWORK_LABEL[sorobanNetwork]} — {sorobanUrl}
+              </dd>
+            </div>
+          </dl>
+
+          <Button asChild variant="outline" size="sm">
+            <Link href="/dashboard/settings">Review network settings</Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function NetworkStatusPanel({
   config,
   className,
 }: NetworkStatusPanelProps) {
-  const { horizonNetwork, sorobanNetwork, mismatched, warnings } = config;
+  const {
+    horizonNetwork,
+    sorobanNetwork,
+    horizonUrl,
+    sorobanUrl,
+    mismatched,
+    warnings,
+  } = config;
+
+  const mismatchWarnings = mismatched
+    ? warnings.filter((warning) =>
+        /Horizon is configured for/i.test(warning)
+      )
+    : [];
+  const otherWarnings = mismatched
+    ? warnings.filter(
+        (warning) => !/Horizon is configured for/i.test(warning)
+      )
+    : warnings;
 
   return (
     <Card
@@ -55,11 +173,12 @@ export function NetworkStatusPanel({
           ) : (
             <CheckCircle2 className="h-5 w-5 text-emerald-500" />
           )}
-          Network configuration
+          {mismatched ? "Network paused" : "Network configuration"}
         </CardTitle>
         <CardDescription>
-          The Stellar network the dashboard is validating contributor
-          funding and Soroban events against.
+          {mismatched
+            ? "This deployment is blocked until Horizon and Soroban RPC point at the same Stellar network."
+            : "The Stellar network the dashboard is validating contributor funding and Soroban events against."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
@@ -77,18 +196,19 @@ export function NetworkStatusPanel({
         </div>
 
         {mismatched && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-destructive">
-            <p className="font-semibold">Network mismatch detected</p>
-            <ul className="mt-1 list-disc space-y-1 pl-5">
-              {warnings.map((warning) => (
-                <li key={warning}>{warning}</li>
-              ))}
-            </ul>
-          </div>
+          <NetworkPausedEmptyState
+            horizonNetwork={horizonNetwork}
+            sorobanNetwork={sorobanNetwork}
+            horizonUrl={horizonUrl}
+            sorobanUrl={sorobanUrl}
+            warnings={
+              mismatchWarnings.length > 0 ? mismatchWarnings : warnings
+            }
+          />
         )}
 
         {!mismatched &&
-          warnings.map((warning) => (
+          otherWarnings.map((warning) => (
             <p key={warning} className="text-muted-foreground">
               {warning}
             </p>

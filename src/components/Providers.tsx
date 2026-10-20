@@ -6,6 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { useState } from "react";
 
 import { Header } from "@/components/Header";
+import { I18nProvider } from "@/lib/i18n-context";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -24,8 +25,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <SessionProvider>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <Header />
-          <main>{children}</main>
+          <I18nProvider>
+            <Header />
+            {/*
+              The single `main` landmark, and the target of the skip link in
+              `layout.tsx`. `tabIndex={-1}` makes it focusable by the skip link
+              without adding it to the tab order — without it, Safari and Firefox
+              move the viewport but leave focus where it was.
+            */}
+            <main id="main-content" tabIndex={-1} className="outline-none">
+              {children}
+            </main>
+          </I18nProvider>
         </ThemeProvider>
       </QueryClientProvider>
     </SessionProvider>

@@ -1,7 +1,14 @@
 import "server-only";
 
-import { DEFAULT_HORIZON_URL } from "@/lib/constants";
-import type { NetworkConfig, StellarNetwork } from "@/types";
+import {
+  ACTION_DEFAULTS,
+  DEFAULT_HORIZON_URL,
+  resolveAssetCode,
+  resolveAssetIssuer,
+  resolveMinXlmBalance,
+} from "@/lib/constants";
+import { isValidStellarAddress } from "@/lib/stellar";
+import type { ActionAlignment, NetworkConfig, StellarNetwork } from "@/types";
 
 const DEFAULT_SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org";
 
@@ -18,6 +25,19 @@ export function resolveHorizonUrl(): string {
 /** Mirrors `getSorobanRpcUrl()` in `src/lib/soroban.ts`. */
 export function resolveSorobanRpcUrl(): string {
   return process.env.SOROBAN_RPC_URL?.trim() || DEFAULT_SOROBAN_RPC_URL;
+}
+
+/**
+ * Resolves Soroban network passphrase. Returns SOROBAN_NETWORK_PASSPHRASE if explicitly set,
+ * otherwise derives default from Horizon config (mainnet -> Public Global Stellar Network, testnet -> Test SDF Network).
+ */
+export function resolveSorobanNetworkPassphrase(): string {
+  const explicit = process.env.SOROBAN_NETWORK_PASSPHRASE?.trim();
+  if (explicit) return explicit;
+  const horizonNetwork = classifyHorizonNetwork(resolveHorizonUrl());
+  return horizonNetwork === "mainnet"
+    ? "Public Global Stellar Network ; September 2015"
+    : "Test SDF Network ; September 2015";
 }
 
 /** Classify a Horizon URL by hostname. Unknown hosts are "custom". */
@@ -56,6 +76,76 @@ function safeHostname(url: string): string {
 }
 
 /**
+ * Compare the *resolved* dashboard configuration against the defaults declared
+ * by trustbridge-action's `action.yml` (mirrored in `ACTION_DEFAULTS`).
+ *
+ * This is the check behind issue #119: the dashboard and the Action each read
+ * their own environment, so nothing stops them drifting apart — and when they
+ * do, a contributor reads as "ready" on the dashboard and still fails the
+ * workflow that gates their payout (or the reverse). Rather than fail closed
+ * on a mismatch — an operator may be running a deliberate testnet or
+ * custom-asset deployment — this reports drift as warnings so the network
+ * panel can show it and the operator can decide.
+ *
+ * The issuer check is the one exception that is *always* worth flagging: a
+ * G-address that fails StrKey checksum validation cannot be a real account on
+ * any network, so it is a misconfiguration regardless of intent.
+ */
+export function checkActionAlignment(): ActionAlignment {
+  const horizonUrl = resolveHorizonUrl();
+  const assetCode = resolveAssetCode();
+  const assetIssuer = resolveAssetIssuer();
+  const minXlmBalance = resolveMinXlmBalance();
+
+  const warnings: string[] = [];
+
+  if (!isValidStellarAddress(assetIssuer)) {
+    warnings.push(
+      `NEXT_PUBLIC_DEFAULT_ASSET_ISSUER (${assetIssuer}) is not a valid Stellar G-address — it fails StrKey checksum validation, so no trustline check against it can ever succeed. The trustbridge-action default is ${ACTION_DEFAULTS.assetIssuer}.`
+    );
+  } else if (assetIssuer !== ACTION_DEFAULTS.assetIssuer) {
+    warnings.push(
+      `Asset issuer differs from trustbridge-action: dashboard uses ${assetIssuer}, the Action defaults to ${ACTION_DEFAULTS.assetIssuer}. Contributors may pass one check and fail the other.`
+    );
+  }
+
+  if (assetCode !== ACTION_DEFAULTS.assetCode) {
+    warnings.push(
+      `Asset code differs from trustbridge-action: dashboard uses ${assetCode}, the Action defaults to ${ACTION_DEFAULTS.assetCode}.`
+    );
+  }
+
+  if (horizonUrl !== ACTION_DEFAULTS.horizonUrl) {
+    warnings.push(
+      `Horizon URL differs from trustbridge-action: dashboard uses ${horizonUrl}, the Action defaults to ${ACTION_DEFAULTS.horizonUrl}.`
+    );
+  }
+
+  // Only a *lower* dashboard floor is dangerous: it marks contributors ready
+  // who the Action will then reject. A higher floor is merely conservative.
+  if (minXlmBalance < ACTION_DEFAULTS.minXlmReserve) {
+    warnings.push(
+      `Minimum XLM balance (${minXlmBalance}) is below trustbridge-action's min_xlm_reserve default (${ACTION_DEFAULTS.minXlmReserve}). Contributors between the two thresholds will show as ready here and fail the Action.`
+    );
+  }
+
+  return {
+    horizonUrl,
+    assetCode,
+    assetIssuer,
+    minXlmBalance,
+    expected: {
+      horizonUrl: ACTION_DEFAULTS.horizonUrl,
+      assetCode: ACTION_DEFAULTS.assetCode,
+      assetIssuer: ACTION_DEFAULTS.assetIssuer,
+      minXlmBalance: ACTION_DEFAULTS.minXlmReserve,
+    },
+    aligned: warnings.length === 0,
+    warnings,
+  };
+}
+
+/**
  * Reads the resolved Horizon and Soroban RPC endpoints and flags a
  * mismatch when they point at two different *known* named networks (e.g.
  * Horizon mainnet + Soroban testnet — the project's actual default
@@ -89,6 +179,9 @@ export function getNetworkConfig(): NetworkConfig {
     );
   }
 
+  const actionAlignment = checkActionAlignment();
+  warnings.push(...actionAlignment.warnings);
+
   return {
     horizonUrl,
     horizonNetwork,
@@ -96,6 +189,7 @@ export function getNetworkConfig(): NetworkConfig {
     sorobanNetwork,
     sorobanContractConfigured,
     mismatched,
+    actionAlignment,
     warnings,
   };
 }
