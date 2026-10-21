@@ -482,3 +482,8 @@ This project is licensed under the [MIT License](LICENSE).
 - [Setup guide](./docs/SETUP.md)
 - [Stellar Horizon API](https://developers.stellar.org/docs/data/apis/horizon)
 - [Stellar USDC trustlines](https://developers.stellar.org/docs/learn/fundamentals/stellar-data-structures/accounts/trustlines)
+
+## Handsoff notes
+
+<!-- handsoff-issue-532 -->
+- #532: Add RBAC tests for maintainer vs contributor on /api/disputes
