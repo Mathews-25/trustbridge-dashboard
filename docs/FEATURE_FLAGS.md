@@ -50,7 +50,7 @@ override or DB row); to close it, flip them back on.
 |---|---|
 | `batch_recheck` | `POST /api/contributors` returns `403` — no per-contributor Horizon fan-out |
 | `invite_generation` | `POST /api/invites/generate` returns `403` — invite issuance frozen |
-| `dlq_retry` | `POST /api/contributors/queue/dlq/[jobId]/retry` returns `403` — failed jobs stay parked |
+| `dlq_retry` | Contributor and Soroban outbox replay endpoints return `403` — failed items stay parked |
 | `maintenance_mode` | Composes with the `MAINTENANCE` env var to take the app read-only |
 
 Because these flags are `risky`, a DB outage during a freeze keeps them **off**
@@ -67,7 +67,7 @@ freeze windows (`FEATURE_FLAG_*`, `FEATURE_FLAGS_DB_ENABLED`,
 |---|---|---|---|---|
 | `batch_recheck` | `true` | ✅ | `POST /api/contributors` — full batch recheck (one Horizon call per contributor) | `src/app/api/contributors/route.ts` |
 | `invite_generation` | `true` | ✅ | `POST /api/invites/generate` — bulk invite code creation | `src/app/api/invites/generate/route.ts` |
-| `dlq_retry` | `true` | ✅ | `POST /api/contributors/queue/dlq/[jobId]/retry` — re-queue a failed job | `src/app/api/contributors/queue/dlq/[jobId]/retry/route.ts` |
+| `dlq_retry` | `true` | ✅ | Retry a failed job or Soroban outbox item via `POST /api/contributors/queue/dlq/[jobId]/retry` or `POST /api/soroban/outbox/dlq/[id]/replay` | `src/app/api/contributors/queue/dlq/[jobId]/retry/route.ts`, `src/app/api/soroban/outbox/dlq/[id]/replay/route.ts` |
 | `maintenance_mode` | `false` | ✅ | Composes with the `MAINTENANCE` env var (see [DEPLOYMENT.md](./DEPLOYMENT.md#maintenance-mode)) | `src/lib/maintenance.ts` |
 | `otel_traces` | `false` | — | Opt-in tracing; composes with `OTEL_TRACES_ENABLED` (see [ENVIRONMENT.md](./ENVIRONMENT.md#opentelemetry-tracing-issue-203)) | `src/lib/tracing.ts` |
 | `freeze_window` | `true` | ✅ | Enforces wave freeze-window blocking on mutating APIs. When OFF, freeze-window helpers never block requests regardless of `FREEZE_WINDOW_*` env vars. | `src/lib/freeze-window.ts` |

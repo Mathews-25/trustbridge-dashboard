@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
+import { SorobanOutboxDeadLetterPanel } from "@/components/SorobanOutboxDeadLetterPanel";
 import {
   Card,
   CardContent,
@@ -94,6 +95,8 @@ export default function DeadLetterQueuePage() {
           Refresh
         </Button>
       </div>
+
+      <SorobanOutboxDeadLetterPanel />
 
       {retryMutation.isError ? (
         <p className="mb-4 text-sm text-destructive" role="alert">

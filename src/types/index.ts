@@ -105,6 +105,7 @@ export type AuditAction =
   | "checklist.update"
   | "network_config_mismatch_detected"
   | "contract.sync"
+  | "soroban.outbox.replayed"
   | "profile.privacy_updated";
 
 export interface AuditLogEntry {
