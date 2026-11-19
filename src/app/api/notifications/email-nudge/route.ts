@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { assertSameOrigin } from "@/lib/csrf";
 import {
   buildNotReadyEmailBody,
+  escapeEmailText,
   sendEmailNotification,
 } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
@@ -115,7 +116,9 @@ export async function POST(request: NextRequest) {
 
     const sent = await sendEmailNotification({
       to: maintainerEmail,
-      subject: `Not ready: ${contributor.githubUsername ?? contributor.id}`,
+      subject: `Not ready: ${escapeEmailText(
+        contributor.githubUsername ?? contributor.id
+      )}`,
       body,
       recipientName: session.user.name ?? undefined,
     });
