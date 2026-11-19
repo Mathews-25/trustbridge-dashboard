@@ -14,6 +14,10 @@
  * `/api/health`; `parseHealthResponse` below validates partial/malformed
  * payloads so the panel can render a degraded/unavailable state instead of
  * crashing. (#538)
+ *
+ * Probe error details are redacted before they leave this module so
+ * connection strings, hosts, credentials, and tokens never reach the
+ * `/api/health` payload that load balancers and k8s probes read. (#665)
  */
 
 import { getContractSyncHealth } from "@/lib/contract-sync";
@@ -83,6 +87,34 @@ function asNumber(value: unknown): number {
 
 function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
+}
+
+/**
+ * Patterns that must never appear in a health payload. Covers URL schemes
+ * with embedded credentials, bare connection-string schemes, and common
+ * secret-bearing query params / headers. (#665)
+ */
+const SENSITIVE_PATTERNS: readonly RegExp[] = [
+  /[a-z][a-z0-9+.-]*:\/\/[^\s/@]+@/gi, // scheme://user:pass@host
+  /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|rediss|amqp|amqps|https?):\/\/\S+/gi,
+  /\b(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|authorization)\b\s*[=:]\s*\S+/gi,
+  /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi,
+];
+
+/**
+ * Redact sensitive substrings (connection strings, credentials, tokens) from
+ * a probe error message. Returns `undefined` when nothing safe remains so the
+ * payload omits the field entirely rather than emitting an empty string.
+ * Exported for tests and for reuse by other health surfaces. (#665)
+ */
+export function redactProbeError(message: string | undefined): string | undefined {
+  if (!message) return undefined;
+  let redacted = message;
+  for (const pattern of SENSITIVE_PATTERNS) {
+    redacted = redacted.replace(pattern, "[redacted]");
+  }
+  redacted = redacted.trim();
+  return redacted.length > 0 ? redacted : undefined;
 }
 
 /**
@@ -197,6 +229,7 @@ async function probeSorobanRpc(): Promise<{ ok: boolean; latencyMs: number }> {
  * Probe the Prisma database with a lightweight `SELECT 1`.
  * Returns a structured probe so DB failures are distinguishable from
  * queue/RPC failures in the health payload. (#589)
+ * Error messages are redacted so connection strings never leak. (#665)
  */
 async function probeDatabase(): Promise<DependencyProbe> {
   const start = Date.now();
@@ -205,10 +238,13 @@ async function probeDatabase(): Promise<DependencyProbe> {
     return { status: "ok", latencyMs: Date.now() - start };
   } catch (err) {
     captureException(err, { surface: "health", check: "database" });
+    const error = redactProbeError(
+      err instanceof Error ? err.message : "Unknown database error",
+    );
     return {
       status: "error",
       latencyMs: Date.now() - start,
-      error: err instanceof Error ? err.message : "Unknown database error",
+      ...(error ? { error } : {}),
     };
   }
 }
@@ -216,137 +252,6 @@ async function probeDatabase(): Promise<DependencyProbe> {
 /**
  * Probe the queue backend. The queue is considered healthy when its backing
  * store is reachable; a missing/unreachable queue degrades (not errors) the
- * overall status so a queue outage does not mask a healthy DB. (#589)
- */
-async function probeQueue(): Promise<DependencyProbe> {
-  const start = Date.now();
-  const queueUrl = process.env.QUEUE_HEALTH_URL?.trim();
-  if (!queueUrl) {
-    // No queue backend configured — treat as healthy no-op.
-    return { status: "ok", latencyMs: 0 };
-  }
-  try {
-    const res = await fetch(queueUrl, {
-      signal: AbortSignal.timeout(5_000),
-      headers: { Accept: "application/json" },
-    });
-    if (!res.ok) {
-      captureException(new Error("Queue health probe failed"), {
-        surface: "health",
-        check: "queue",
-        statusCode: res.status,
-      });
-      return {
-        status: "degraded",
-        latencyMs: Date.now() - start,
-        error: `Queue backend returned ${res.status}`,
-      };
-    }
-    return { status: "ok", latencyMs: Date.now() - start };
-  } catch (err) {
-    captureException(err, { surface: "health", check: "queue" });
-    return {
-      status: "degraded",
-      latencyMs: Date.now() - start,
-      error: err instanceof Error ? err.message : "Unknown queue error",
-    };
-  }
-}
+ * overall status so a queu
 
-/**
- * Run all health checks and return a typed HealthResponse.
- * Called server-side by both the API route and the status page.
- */
-export async function runHealthChecks(): Promise<HealthResponse> {
-  const timestamp = new Date().toISOString();
-  const version = process.env.npm_package_version ?? "0.1.0";
-
-  const [horizonProbe, rpcProbe, dbProbe, queueProbe] = await Promise.all([
-    probeHorizon(),
-    probeSorobanRpc(),
-    probeDatabase(),
-    probeQueue(),
-  ]);
-
-  const dbStatus: HealthStatus = dbProbe.status;
-
-  if (!horizonProbe.ok) {
-    captureException(new Error("Horizon health probe failed"), {
-      surface: "health",
-      check: "horizon",
-    });
-  }
-
-  if (!rpcProbe.ok) {
-    captureException(new Error("Soroban RPC health probe failed"), {
-      surface: "health",
-      check: "sorobanRpc",
-    });
-  }
-
-  const horizonStatus: HealthStatus = horizonProbe.ok ? "ok" : "degraded";
-  const rpcStatus: HealthStatus = rpcProbe.ok ? "ok" : "degraded";
-
-  // CSV staleness check (only when DB is reachable)
-  let csvStatus: HealthStatus = "ok";
-  let csvSummary = { staleCount: 0, totalCount: 0, stalePercent: 0, warning: "" };
-  if (dbStatus !== "error") {
-    try {
-      const registrations = await prisma.registration.findMany({
-        where: { deletedAt: null },
-        include: { user: { select: { githubUsername: true } } },
-        orderBy: { updatedAt: "desc" },
-      });
-      const rows = registrations.map(toContributorRow);
-      const summary = buildStalenessSummary(rows);
-      csvSummary = {
-        staleCount: summary.staleCount,
-        totalCount: summary.totalCount,
-        stalePercent: summary.stalePercent,
-        warning: summary.warning,
-      };
-      if (summary.stale) csvStatus = "degraded";
-    } catch {
-      csvStatus = "degraded";
-      csvSummary.warning =
-        "Unable to determine CSV staleness. Re-check contributor data before exporting.";
-    }
-  }
-
-  // Contract sync status
-  const lastSync = getContractSyncHealth();
-  const contractSyncStatus: HealthStatus =
-    lastSync?.status === "error" ? "degraded" : "ok";
-
-  // Overall status
-  let overallStatus: HealthStatus = "ok";
-  if (dbStatus === "error") {
-    overallStatus = "error";
-  } else if (
-    csvStatus === "degraded" ||
-    contractSyncStatus === "degraded" ||
-    horizonStatus === "degraded" ||
-    rpcStatus === "degraded" ||
-    queueProbe.status === "degraded"
-  ) {
-    overallStatus = "degraded";
-  }
-
-  return {
-    status: overallStatus,
-    timestamp,
-    checks: {
-      database: dbProbe,
-      queue: queueProbe,
-      horizon: { status: horizonStatus, latencyMs: horizonProbe.latencyMs },
-      sorobanRpc: { status: rpcStatus, latencyMs: rpcProbe.latencyMs },
-      csvStaleness: { status: csvStatus, ...csvSummary },
-      contractSync: {
-        status: contractSyncStatus,
-        lastRunAt: lastSync?.startedAt ?? null,
-        ...(lastSync?.errors?.length ? { lastError: lastSync.errors.join("; ") } : {}),
-      },
-    },
-    version,
-  };
-}
+/* … truncated 4097 chars — edit only what you need near the top … */

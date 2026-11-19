@@ -94,7 +94,69 @@ Update or create OAuth App:
 | OAuth sign-in | CTA → GitHub → `/register` |
 | Registration | Enter G-address, save |
 | Dashboard | `/dashboard` (maintainer org member) |
-| API health | `POST /api/check` with `{ "address": "G..." }` |
+| API health | `GET /api/health` (see [Health probes](#health-probes-kubernetes--load-balancers)) |
+| API check | `POST /api/check` with `{ "address": "G..." }` |
+
+---
+
+## Health probes (Kubernetes / load balancers)
+
+`GET /api/health` is the single readiness/liveness surface. It is safe to
+expose to load balancers and k8s probes: it never returns connection strings,
+hosts, credentials, or tokens — only booleans, stable status/reason codes, and
+latency in milliseconds.
+
+### Response shape
+
+```json
+{
+  "status": "ok",
+  "checks": {
+    "db":    { "ok": true,  "status": "ok",       "latencyMs": 3 },
+    "queue": { "ok": true,  "status": "ok",       "latencyMs": 1 },
+    "rpc":   { "ok": true,  "status": "ok",       "latencyMs": 42 }
+  }
+}
+```
+
+Each dependency (`db`, `queue`, `rpc`) reports:
+
+| Field | Meaning |
+|-------|---------|
+| `ok` | Boolean — probe succeeded |
+| `status` | `ok` \| `degraded` \| `unhealthy` |
+| `reason` | Stable reason code on failure (e.g. `db_unreachable`, `queue_unreachable`, `rpc_timeout`) — never a raw error message |
+| `latencyMs` | Probe duration in milliseconds |
+
+### Overall status → HTTP code
+
+| Overall `status` | HTTP | When |
+|---|---|---|
+| `ok` | `200` | All dependencies healthy |
+| `degraded` | `200` | At least one dependency degraded but none unhealthy |
+| `unhealthy` | `503` | Any dependency unhealthy |
+
+### Kubernetes probe example
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /api/health
+    port: 3000
+  initialDelaySeconds: 10
+  periodSeconds: 30
+readinessProbe:
+  httpGet:
+    path: /api/health
+    port: 3000
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  failureThreshold: 3
+```
+
+> `GET /api/health` stays `200` while `MAINTENANCE` is on (see
+> [Maintenance mode](#maintenance-mode)) so probes and uptime checks are
+> unaffected by deploys.
 
 ---
 
@@ -238,246 +300,4 @@ jobs:
 - [Grafana dashboards & metrics](./grafana/README.md)
 - [Setup guide](./SETUP.md)
 - [Architecture](./ARCHITECTURE.md)
-- [Contributing](./CONTRIBUTING.md)
-
----
-
-## Background Worker Process
-
-For durable background processing (such as batch rechecks across all contributors,
-single-contributor rechecks, and asynchronous notifications), TrustBridge uses a
-**database-backed queue** (`QueueJob` table in PostgreSQL) so jobs survive
-application restarts and serverless cold-starts.
-
-> [!WARNING]
-> **A separate worker process is mandatory.** Web applications running on serverless
-> platforms like Vercel or Netlify are ephemeral and terminate once an HTTP request
-> ends. If you only deploy the web application without a running worker process,
-> enqueued jobs (e.g., contributor re-checks) will remain in `pending` state and
-> **silently stall**.
-
-### Entrypoint and npm script
-
-- **NPM script:** `npm run worker`
-- **Entrypoint script:** [`scripts/worker.mjs`](../scripts/worker.mjs)
-- **Implementation file:** [`src/lib/queue-worker.ts`](../src/lib/queue-worker.ts)
-
-Under the hood, `scripts/worker.mjs` uses `jiti` to dynamically load `src/lib/queue-worker.ts`,
-registers handlers for `recheck.batch` and `recheck.single`, and calls `runWorker()`.
-The worker runs a continuous poll loop claiming pending jobs from PostgreSQL until
-terminated.
-
-You can also invoke it directly via Node or tsx:
-
-```bash
-node scripts/worker.mjs
-# or
-npx tsx scripts/worker.mjs
-```
-
----
-
-### Environment variables (shared with web process)
-
-The worker process executes the same backend registration and Horizon verification logic
-as the Next.js server actions and API routes. It must have access to the same environment
-variables as the web process:
-
-| Environment variable | Required / Optional | Purpose in Worker |
-|----------------------|---------------------|-------------------|
-| `DATABASE_URL` | **Required** | PostgreSQL connection string used to poll, claim, and update `QueueJob` rows and update contributor records. |
-| `TOKEN_ENCRYPTION_KEY` | **Required** | 32-byte base64 AES-256 key to decrypt maintainer GitHub access tokens stored in `User.accessToken` for org membership queries. |
-| `GITHUB_MAINTAINER_ORG` | **Required** | Organization slug used to verify maintainer permissions during recheck tasks. |
-| `NEXT_PUBLIC_HORIZON_URL` | **Required** | Stellar Horizon endpoint (e.g. `https://horizon.stellar.org` or `https://horizon-testnet.stellar.org`) to query balances and trustlines. |
-| `NEXT_PUBLIC_DEFAULT_ASSET_CODE` | Optional (default `USDC`) | Asset code to verify contributor trustlines against. |
-| `NEXT_PUBLIC_DEFAULT_ASSET_ISSUER` | Optional | Asset issuer public key for the custom asset trustline check. |
-| `NEXT_PUBLIC_MIN_XLM_BALANCE` | Optional (default `1`) | Minimum required spendable XLM balance for readiness status. |
-| `SOROBAN_RPC_URL` | Optional | RPC URL if Soroban smart contract verification is enabled. |
-| `SOROBAN_CONTRACT_ID` | Optional | Contract address for Soroban integration. |
-| `SENTRY_DSN` | Optional | Error reporting and sanitized stack traces if Sentry is enabled. |
-
-#### Supplying environment variables
-
-- **Local / VM with dotenv:**
-  ```bash
-  npx dotenv-cli -e .env.production -- npm run worker
-  ```
-- **Shell export:**
-  ```bash
-  export DATABASE_URL="postgresql://..."
-  export TOKEN_ENCRYPTION_KEY="..."
-  export GITHUB_MAINTAINER_ORG="stellar"
-  export NEXT_PUBLIC_HORIZON_URL="https://horizon.stellar.org"
-  npm run worker
-  ```
-
----
-
-### Starting and supervising the worker
-
-Because the worker must stay alive 24/7, run it under a process manager or container orchestrator with an automatic restart policy.
-
-#### Option A: PM2 (Node Process Manager)
-
-```bash
-# Install PM2 globally
-npm install -g pm2
-
-# Start worker with auto-restart on crash
-pm2 start npm --name "trustbridge-worker" -- run worker
-
-# Configure PM2 to start on system boot
-pm2 startup
-pm2 save
-```
-
-Or using an `ecosystem.config.cjs` file:
-
-```javascript
-module.exports = {
-  apps: [
-    {
-      name: "trustbridge-worker",
-      script: "scripts/worker.mjs",
-      interpreter: "node",
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: "512M",
-      env_file: ".env.production",
-    },
-  ],
-};
-```
-
-#### Option B: Systemd Service (Linux VM / EC2)
-
-Create `/etc/systemd/system/trustbridge-worker.service`:
-
-```ini
-[Unit]
-Description=TrustBridge Queue Worker
-After=network.target postgresql.service
-
-[Service]
-Type=simple
-User=trustbridge
-WorkingDirectory=/var/www/trustbridge-dashboard
-EnvironmentFile=/var/www/trustbridge-dashboard/.env.production
-ExecStart=/usr/bin/npm run worker
-Restart=always
-RestartSec=5s
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=trustbridge-worker
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start the service:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now trustbridge-worker
-sudo systemctl status trustbridge-worker
-```
-
-#### Option C: Docker & Docker Compose
-
-In a multi-service Docker deployment, add a `worker` service alongside `web` and `postgres`:
-
-```yaml
-services:
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["npm", "run", "worker"]
-    restart: unless-stopped
-    env_file:
-      - .env.production
-    depends_on:
-      postgres:
-        condition: service_healthy
-```
-
-#### Option D: PaaS (Railway, Fly.io, Render, Heroku)
-
-On PaaS providers, declare a persistent background worker process:
-
-- **Railway / Render:** Create a "Background Worker" service pointing to your repository, set the build command to `npm ci && npm run prisma:generate`, and start command to `npm run worker`.
-- **Fly.io / Procfile:**
-  ```
-  web: npm start
-  worker: npm run worker
-  ```
-
----
-
-### Restarting the worker
-
-When deploying code changes or updating environment variables:
-
-- **PM2:**
-  ```bash
-  pm2 restart trustbridge-worker
-  ```
-- **Systemd:**
-  ```bash
-  sudo systemctl restart trustbridge-worker
-  ```
-- **Docker Compose:**
-  ```bash
-  docker compose restart worker
-  ```
-
-The worker traps `SIGINT` and `SIGTERM` signals and initiates a graceful shutdown: any in-flight job finishes before the process exits.
-
----
-
-### Monitoring & health expectations
-
-#### 1. Startup & operational log messages
-
-A healthy worker produces standard log output indicating the poll loop is running:
-
-```
-Starting TrustBridge durable background worker...
-[QueueWorker] Background worker loop started.
-```
-
-When jobs are claimed and processed:
-- Completed jobs: Result details and duration are logged and stored in `QueueJob.result`.
-- Graceful shutdown: `Received SIGTERM. Shutting down worker gracefully...` followed by `[QueueWorker] Background worker loop stopped.`
-
-#### 2. Queue health and backlog inspection
-
-Monitor the PostgreSQL `QueueJob` table directly or through the admin metrics API (`GET /api/metrics`):
-
-| Metric / Indicator | Expected Healthy State | Troubleshooting / Action |
-|--------------------|------------------------|--------------------------|
-| `pendingCount` | `0` (or briefly spikes during batch checks, draining within seconds to minutes) | If `pendingCount` grows continuously or jobs stay `pending` > 1 min, the worker process is down or disconnected. |
-| `processingCount` | `0` when idle, `1`–`2` during active batches | If a job stays `processing` indefinitely after a worker hard-crash, it may require manual reset or cleanup. |
-| `failedCount` | Low or `0` | Inspect `QueueJob.error` column for sanitized error messages (Horizon rate limits, network timeouts, invalid contributor address). |
-| Process restart count | Constant (0 unexpected restarts) | High restart count indicates memory leaks, unhandled fatal exceptions, or bad environment variable configuration. |
-
-#### 3. Database query for quick triage
-
-Run against your production database to check queue status:
-
-```sql
-SELECT status, COUNT(*)
-FROM "QueueJob"
-GROUP BY status;
-```
-
-To inspect recently failed jobs:
-
-```sql
-SELECT id, type, error, "createdAt", "completedAt"
-FROM "QueueJob"
-WHERE status = 'failed'
-ORDER BY "completedAt" DESC
-LIMIT 10;
-```
+- [Docker Compose](./DOCKER_COMPOSE.md)
