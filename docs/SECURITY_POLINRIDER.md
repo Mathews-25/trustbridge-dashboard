@@ -121,3 +121,12 @@ This tooling **does not** rotate credentials. If malware was confirmed on a mach
 1. Stop using that machine for privileged work.
 2. From a clean device, rotate GitHub, npm, cloud, SSH, wallet, and CI secrets.
 3. Review recent publishes and force-pushes on your accounts.
+
+## Session and credential lifetime (operator-facing)
+
+PolinRider compromises developer machines and CI credentials; the blast radius depends on how long stolen browser sessions and API keys stay valid. See [`docs/SESSIONS.md`](./SESSIONS.md) for the full model. Operator summary:
+
+- **Browser sessions (NextAuth)** are bounded by two independent limits: an **idle timeout** (sliding, refreshed on activity) and an **absolute timeout** (hard cap from sign-in, never extended). Whichever fires first ends the session. A stolen cookie therefore cannot be kept alive indefinitely by replaying requests.
+- **Org switching** re-validates membership and re-scopes the session; it does not reset the absolute timeout. Operators should expect re-auth prompts after the absolute cap even during active use.
+- **API keys** are not browser sessions: they have no idle/absolute timeout and remain valid until explicitly revoked or rotated. If a key may have been exposed on a compromised machine, **revoke and rotate it** — waiting for a timeout will not help.
+- Shared consoles left open are the primary risk called out in `docs/SESSIONS.md`; lock or sign out of shared machines, and prefer short-lived API keys for automation.

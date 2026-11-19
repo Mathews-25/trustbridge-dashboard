@@ -1,60 +1,84 @@
-# Sessions
+# Sessions: idle vs absolute timeouts, org switching, and API keys
 
-This document describes how Trustbridge issues, stores, and validates user
-sessions. It is the reference for the session-related surfaces referenced from
-the project README.
+This document explains how browser sessions issued by NextAuth interact with
+idle and absolute timeouts, what happens when a maintainer switches orgs, and
+how API keys differ from browser sessions. It is the operator-facing companion
+to `src/lib/auth.ts` and `src/app/api/auth/`.
 
-## Overview
+## Two clocks, one cookie
 
-Sessions are used to keep a user authenticated across requests. A session is
-created on successful sign-in, persisted server-side, and referenced from the
-client via an HTTP-only cookie. Session state is never trusted from the client
-beyond the opaque session identifier.
+A browser session is a signed JWT cookie managed by NextAuth. Two independent
+clocks govern its lifetime:
 
-## Lifecycle
+| Clock | Enforced by | Value | Effect |
+| --- | --- | --- | --- |
+| **Absolute timeout** | NextAuth (`session.maxAge`) | `SESSION_MAX_AGE_SECONDS` (see `src/lib/session-info.ts`) | Hard ceiling. Once the JWT's `exp` passes, the cookie is rejected and the user must sign in again, regardless of activity. |
+| **Idle timeout** | NextAuth JWT refresh | Same `maxAge` window, refreshed on each authenticated request | The cookie's `exp` slides forward while the user is active. If the user is idle past the window, the cookie expires and the next request is unauthenticated. |
 
-1. **Creation** — On successful authentication a new session record is created
-   with a random, high-entropy identifier. The identifier is set as an
-   HTTP-only, `SameSite=Lax`, `Secure` (in production) cookie.
-2. **Validation** — Each authenticated request resolves the cookie to a stored
-   session, checks expiry, and attaches the associated user to the request
-   context.
-3. **Refresh** — Active sessions are extended on use up to a configured maximum
-   lifetime. Idle sessions expire after the configured idle timeout.
-4. **Revocation** — Sign-out, password changes, and explicit revocation delete
-   the server-side session record so the cookie can no longer be resolved.
+Because both are derived from `SESSION_MAX_AGE_SECONDS`, the effective behavior
+is:
 
-## Storage
+- **Active user:** the session keeps sliding forward, but never past the
+  absolute ceiling enforced by the JWT `exp` set at sign-in.
+- **Idle user:** after `SESSION_MAX_AGE_SECONDS` of inactivity the cookie is
+  rejected and the user is redirected to sign in.
 
-- Session records are stored server-side; the client only ever holds the opaque
-  identifier.
-- Records include the owning user, creation time, last-seen time, and expiry.
-- Expired records are pruned so they cannot be replayed.
+The account panel reports `SESSION_MAX_AGE_SECONDS` back to the user; a test
+asserts that `src/lib/session-info.ts` and `authOptions.session.maxAge` stay in
+step. Do not change one without the other.
 
-## Security properties
+### What is *not* enforced here
 
-- **HTTP-only cookies** prevent JavaScript access to the session identifier.
-- **`Secure` cookies** in production prevent transmission over plaintext.
-- **`SameSite`** mitigates cross-site request forgery; see `docs/CSRF.md` for
-  the CSRF strategy used alongside sessions.
-- **Rotation** on privilege change (e.g. sign-in, password change) prevents
-  session fixation.
-- **Server-side revocation** ensures sign-out is effective immediately.
+- There is no separate, shorter idle timeout distinct from `maxAge`. If you
+  need one, add it explicitly in `authOptions.callbacks.jwt` and document it
+  here — do not invent a parallel session subsystem.
+- Session revocation is not instantaneous: a signed JWT remains valid until
+  `exp`. To force immediate sign-out, rotate `NEXTAUTH_SECRET` (invalidates all
+  sessions) or remove the user's org membership so the next role check fails.
 
-## Configuration
+## Org switching
 
-Session behavior is controlled by environment configuration (idle timeout,
-absolute lifetime, cookie flags). Feature-gated behavior is documented in
-`docs/FEATURE_FLAGS.md`.
+Org scope lives in the JWT (`availableOrgs`, `role`, `isMaintainer`), resolved
+at sign-in from `ALLOWED_MAINTAINER_ORGS` and the GitHub team env vars.
 
-## Testing
+When a maintainer switches orgs in the UI:
 
-Session flows are exercised by the end-to-end suite. See `docs/E2E_TESTING.md`
-for how to run the E2E tests that cover sign-in, session persistence, and
-sign-out.
+1. **Preserved:** the session cookie, `sub` (user id), `githubUsername`, and
+   the encrypted GitHub access token stored on the `User` row. No re-auth is
+   required to switch between orgs the user already belongs to.
+2. **Re-validated:** every API route that touches org-scoped data calls
+   `verifyTenantAccess(targetOrgId, currentOrgId)` (see `src/lib/auth.ts`).
+   A mismatch fails closed with a tenant error — the switch does not widen
+   access.
+3. **Re-auth expectations:** if the user's GitHub org membership changed since
+   sign-in, the JWT's `availableOrgs`/`role` are stale until the next sign-in.
+   Operators should sign out and back in after membership changes; the next
+   `jwt` callback re-runs `resolveAvailableOrgs` and `resolveRole`.
 
-## Related documentation
+CSRF tokens are issued per session (`src/lib/csrf.ts`) and are unaffected by
+org switching; they are re-issued on sign-in.
 
-- [`docs/FEATURE_FLAGS.md`](./FEATURE_FLAGS.md) — feature flag configuration.
-- [`docs/CSRF.md`](./CSRF.md) — CSRF protection used with sessions.
-- [`docs/E2E_TESTING.md`](./E2E_TESTING.md) — end-to-end test guide.
+## API keys vs browser sessions
+
+API keys are **not** browser sessions and do not share the timeout model:
+
+| Property | Browser session | API key |
+| --- | --- | --- |
+| Transport | Signed JWT cookie | `Authorization: Bearer <key>` header |
+| Idle timeout | Yes (`maxAge` slide) | **No** — keys do not expire on idle |
+| Absolute timeout | Yes (`maxAge` ceiling) | **No** — keys remain valid until revoked |
+| Org scope | JWT `availableOrgs` + `verifyTenantAccess` | Bound to the issuing org; checked per request |
+| Revocation | Rotate `NEXTAUTH_SECRET` or remove membership | Explicit revoke; effective immediately on next request |
+| CSRF | Required for state-changing requests | Not applicable (no cookie) |
+
+See `docs/API_KEYS.md` for key issuance, scopes, and revocation semantics.
+
+## Operator checklist
+
+- Shared consoles: sign out when leaving a machine. The idle window is the
+  only automatic protection; there is no shorter idle timeout today.
+- After changing `ALLOWED_MAINTAINER_ORGS` or team env vars, have maintainers
+  sign out and back in so the JWT picks up the new scope.
+- To invalidate every browser session immediately, rotate `NEXTAUTH_SECRET`.
+- To invalidate a single integration, revoke its API key — do not rely on
+  session timeouts for machine credentials.
