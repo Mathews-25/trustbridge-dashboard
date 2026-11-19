@@ -45,6 +45,32 @@ export function redactAlertText(value: string): string {
 }
 
 /**
+ * Recursively redact every string value in an alert payload so that raw
+ * G-addresses and API keys never leave the process — regardless of which
+ * field (error, text, routing_key, nested metadata) they appear in.
+ *
+ * Reuses {@link redactAlertText} so there is a single redaction policy.
+ * Non-string primitives are returned unchanged; arrays and plain objects are
+ * walked. Pure function — safe to unit test.
+ */
+export function redactAlertPayload<T>(payload: T): T {
+  if (typeof payload === "string") {
+    return redactAlertText(payload) as unknown as T;
+  }
+  if (Array.isArray(payload)) {
+    return payload.map((item) => redactAlertPayload(item)) as unknown as T;
+  }
+  if (payload !== null && typeof payload === "object") {
+    const redacted: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
+      redacted[key] = redactAlertPayload(value);
+    }
+    return redacted as T;
+  }
+  return payload;
+}
+
+/**
  * Fire an outbound failure-alert webhook when the cron export fails.
  *
  * Destination: `CRON_EXPORT_ALERT_WEBHOOK_URL` env var.
@@ -53,6 +79,10 @@ export function redactAlertText(value: string): string {
  * The POST is fire-and-forget with a 5-second abort timeout.
  * A delivery failure is logged but never re-throws — the alert mechanism must
  * not interfere with the export result or the caller's error handling.
+ *
+ * The entire payload is passed through {@link redactAlertPayload} before it is
+ * serialized, so raw G-addresses and API keys never appear in Slack/email
+ * alert bodies.
  *
  * @param result  The failed CronExportResult from runCronExport().
  */
@@ -83,6 +113,10 @@ export async function sendCronExportAlert(
     payload.event_action = "trigger";
   }
 
+  // Defense in depth: redact every string field (error, text, routing_key, …)
+  // so no raw address or API key can leak through any channel.
+  const safePayload = redactAlertPayload(payload);
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), ALERT_TIMEOUT_MS);
 
@@ -90,7 +124,7 @@ export async function sendCronExportAlert(
     const response = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(safePayload),
       signal: controller.signal,
     });
 

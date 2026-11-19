@@ -1,10 +1,11 @@
 /**
- * Redaction and alert-on-fail tests for the cron export alert path (#648).
+ * Redaction and alert-on-fail tests for the cron export alert path (#648, #662).
  *
  * Covers:
  *   - hard export failures carry a redacted error (no raw G-addresses/secrets)
  *   - benign errors pass through unchanged
  *   - alert delivery failure never throws (must not crash the cron handler)
+ *   - Slack and email channels never leak raw G-addresses or API keys (#662)
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,6 +16,7 @@ import { redactAlertText, sendCronExportAlert } from "@/lib/cron-export-alert";
 import type { CronExportResult } from "@/lib/cron-export";
 
 const ADDRESS = `G${"A".repeat(55)}`;
+const API_KEY = "tb_abcdefgh12345678";
 
 function failedResult(error: string): CronExportResult {
   return {
@@ -38,9 +40,9 @@ describe("redactAlertText", () => {
 
   it("masks api-key-style secrets and bearer tokens", () => {
     const redacted = redactAlertText(
-      "auth failed tb_abcdefgh12345678 with Bearer abcdef123456"
+      `auth failed ${API_KEY} with Bearer abcdef123456`
     );
-    expect(redacted).not.toContain("tb_abcdefgh12345678");
+    expect(redacted).not.toContain(API_KEY);
     expect(redacted).toContain("[redacted-secret]");
     expect(redacted).toContain("Bearer [redacted]");
   });
@@ -57,22 +59,39 @@ describe("sendCronExportAlert redaction (fail path)", () => {
     mockFetch.mockReset();
     delete process.env.CRON_EXPORT_ALERT_WEBHOOK_URL;
     delete process.env.CRON_EXPORT_ALERT_PAGERDUTY_KEY;
+    delete process.env.CRON_EXPORT_ALERT_EMAIL_TO;
   });
 
-  it("redacts addresses and secrets from the alert payload and text", async () => {
+  it("redacts addresses and secrets from the Slack payload and text", async () => {
     process.env.CRON_EXPORT_ALERT_WEBHOOK_URL =
       "https://hooks.example.com/alert";
     mockFetch.mockReturnValueOnce(okResponse());
 
     await sendCronExportAlert(
-      failedResult(`stream aborted for ${ADDRESS} key tb_abcdefgh12345678`)
+      failedResult(`stream aborted for ${ADDRESS} key ${API_KEY}`)
     );
 
     const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
     expect(body.error).not.toContain(ADDRESS);
-    expect(body.error).not.toContain("tb_abcdefgh12345678");
+    expect(body.error).not.toContain(API_KEY);
     expect(body.error).toContain("[redacted-secret]");
     expect(body.text).not.toContain(ADDRESS);
+    expect(body.text).not.toContain(API_KEY);
+  });
+
+  it("redacts addresses and secrets from the email payload", async () => {
+    process.env.CRON_EXPORT_ALERT_EMAIL_TO = "ops@example.com";
+    mockFetch.mockReturnValueOnce(okResponse());
+
+    await sendCronExportAlert(
+      failedResult(`export failed for ${ADDRESS} using ${API_KEY}`)
+    );
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+    const serialized = JSON.stringify(body);
+    expect(serialized).not.toContain(ADDRESS);
+    expect(serialized).not.toContain(API_KEY);
+    expect(serialized).toContain("[redacted-secret]");
   });
 
   it("alert delivery failure never throws", async () => {
